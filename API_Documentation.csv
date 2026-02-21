@@ -1,0 +1,42 @@
+Module,Method,Endpoint,Request Body / Params,Response (success),Response (fail),Notes
+AUTH,POST,/auth/login,"{ email, password }","{ message, user }","{ message }",Old auth - plain text password
+ACCOUNT,POST,/account/login_process,"{ email, password }","{ success, status_code:1, message, data: user }","{ success, status_code:0, message }",Password base64 encoded; queries user_tbl
+ACCOUNT,GET,/account/profile/:user_id,URL param: user_id,"{ success, data: user }","{ success, message }",
+ACCOUNT,POST,/account/edit_profile_process,"{ user_id, name, password }","{ success, status_code:1, message }","{ success, status_code:0, message }",
+USERS,GET,/users/manage_user,None,"{ success, data: [users] }","{ success, message }",Returns active users only (active_state=1)
+USERS,POST,/users/add_user_process,"{ fname, lname, email, password, role }","{ success, status_code:1, message }","{ success, status_code:0, message }",Checks duplicate email
+USERS,GET,/users/edit_user/:user_id,URL param: user_id,"{ success, data: user }","{ success, message }",
+USERS,POST,/users/edit_user_process,"{ user_id, fname, lname, email, password, role }","{ success, status_code:1, message }","{ success, status_code:0, message }",
+USERS,POST,/users/delete_user,"{ user_id }","{ success, status_code:1, message }","{ success, status_code:0, message }",Soft delete (active_state=0)
+DASHBOARD,GET,/dashboard?user_id=X&role=Y,Query: user_id + role,"{ success, data: { total_quotes, total_approved_quotes, total_users, total_products, quotes[] } }","{ success, message }",role=1 shows all; other roles see own quotes only
+QUOTE,GET,/quote/manage_quote?user_id=X&role=Y,Query: user_id + role,"{ success, data: [quotes with payment_details] }","{ success, message }",Excludes status=5 (deleted); role-aware
+QUOTE,GET,/quote/get_product_data,None,"{ success, data: [products] }","{ success, message }",type=1 & status=1 only
+QUOTE,GET,/quote/get_colors,None,"{ success, data: [colors] }","{ success, message }",From color_tbl
+QUOTE,GET,/quote/get_provinces,None,"{ success, data: [provinces] }","{ success, message }",From taxrates table
+QUOTE,POST,/quote/add_quote_process,"{ user_id, fname, lname, email, phone, street, city, state, country, post_code, product_data[], custom_product_data[], total_controller_price, total_feet_price, discount_percentage, gst_percentage, gst, main_total, notes, adminnotes }","{ success, status_code:1, message, quote_id, quote_no }","{ success, status_code:0, message }",Auto-generates quote_no (QTEyy00id)
+QUOTE,GET,/quote/view_quote/:quote_id,URL param: quote_id,"{ success, data: quote with access_image + annotation_image + products + payment_details }","{ success, message }",Full quote detail view
+QUOTE,GET,/quote/view_quote_payment/:quote_id,URL param: quote_id,"{ success, data: [payment records] }","{ success, message }",From online_payment_details
+QUOTE,GET,/quote/edit_quote/:quote_id,URL param: quote_id,"{ success, data: { quote, products, colors, provinces } }","{ success, message }",Data needed for edit form
+QUOTE,POST,/quote/edit_quote_process,"{ quote_id, fname, lname, email, phone, street, city, state, country, post_code, product_data[], custom_product_data[], total_controller_price, total_feet_price, discount_percentage, gst_percentage, gst, main_total, notes, adminnotes }","{ success, status_code:1, message }","{ success, status_code:0, message }",
+QUOTE,POST,/quote/send_for_approval,"{ quote_id }","{ success, status_code:1, message }","{ success, status_code:0, message }",Sets status=2; TODO: send approval email
+QUOTE,POST,/quote/send_for_approve,"{ quote_id }","{ success, status_code:1, message }","{ success, status_code:0, message }",Sets status=3; TODO: send customer email
+QUOTE,POST,/quote/delete_quote,"{ quote_id }","{ success, status_code:1, message }","{ success, status_code:0, message }",Soft delete (status=5)
+QUOTE,POST,/quote/set_payment_option,"{ quote_id, payment_type, payment_percentage, amount, pendingPaymentAmount, payment_methods }","{ success, status_code:1, message }","{ success, status_code:0, message }",Upsert into quote_payment table
+QUOTE,POST,/quote/add_extra_work_process,"{ quote_id, extra_work_data[], gst, total_extra_work, main_total }","{ success, status_code:1, message }","{ success, status_code:0, message }",Updates quote_tbl with extra work
+QUOTE,POST,/quote/send_final_quote,"{ quote_id }","{ success, status_code:1, message }","{ success, message }",Sets invoice_date; TODO: send final invoice email
+QUOTE,POST,/quote/resend_quote,"{ quote_id }","{ success, status_code:1, message }","{ success, message }",TODO: resend customer email
+QUOTE,POST,/quote/update_quote,"{ quote_id }","{ success, status_code:1, message }","{ success, message }",TODO: send updated quote email
+QUOTE,POST,/quote/payment_receive,"{ quote_id, online_payment_id, maintotal, amount }","{ success, status_code:1, message }","{ success, message }",Confirms payment; recalculates pending amount
+QUOTE,POST,/quote/schedule_installation,"{ quote_id, installation_date, customer_email, quote_no }","{ success, status_code:1, message }","{ success, status_code:0, message }",Updates installation_date; TODO: send email
+QUOTE,GET,/quote/installs,None,"{ success, data: { upcoming_installations[], non_scheduled_jobs[] } }","{ success, message }",Upcoming = future dates; non-scheduled = confirmed payment but no date
+CUSTOMER,GET,/customer/manage_customer,None,"{ success, data: [customers] }","{ success, message }",active_state=1 only; ordered by cust_id DESC
+CUSTOMER,POST,/customer/add_customer_process,"{ fname, lname, email, phone, street, city, state, gst, post_code, country }","{ success, status_code:1, message }","{ success, status_code:0, message }",Checks duplicate email
+CUSTOMER,GET,/customer/edit_customer/:customer_id,URL param: customer_id,"{ success, data: customer }","{ success, message }",
+CUSTOMER,POST,/customer/update_customer_process,"{ customer_id, fname, lname, email, phone, street, city, state, gst, country, post_code }","{ success, status_code:1, message }","{ success, status_code:0, message }",Checks email conflict with other customers
+CUSTOMER,POST,/customer/delete_customer,"{ customer_id }","{ success, status_code:1, message }","{ success, status_code:0, message }",Soft delete (active_state=0)
+PRODUCTS,GET,/products/manage_products,None,"{ success, data: [products] }","{ success, message }",status=1 only
+PRODUCTS,POST,/products/add_product_process,"{ title, sku, description, inventory, price, type, channel_color }","{ success, status_code:1, message }","{ success, status_code:0, message }",Checks duplicate SKU
+PRODUCTS,GET,/products/edit_product/:product_id,URL param: product_id,"{ success, data: product }","{ success, message }",
+PRODUCTS,POST,/products/edit_product_process,"{ product_id, title, sku, description, inventory, price, type, channel_color }","{ success, status_code:1, message }","{ success, status_code:0, message }",
+PRODUCTS,POST,/products/delete_product,"{ product_id }","{ success, status_code:1, message }","{ success, status_code:0, message }",Soft delete (status=0)
+PAYMENT,GET,/payment/manage_invoice?user_id=X&role=Y,Query: user_id + role,"{ success, data: [invoices with quote_no + customer_name + salesman] }","{ success, message }",role=1 sees all; others see own only
