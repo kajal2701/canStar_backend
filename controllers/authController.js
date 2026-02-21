@@ -12,11 +12,11 @@ export const login = async (req, res) => {
     }
 
     // Step 2 - find user in database by email
-    const result = await pool.query("SELECT * FROM users WHERE email = $1", [
+    const [rows] = await pool.query("SELECT * FROM users WHERE email = ?", [
       email,
     ]);
 
-    const user = result.rows[0];
+    const user = rows[0];
 
     // Step 3 - if user not found
     if (!user) {
