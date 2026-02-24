@@ -10,11 +10,8 @@ export const login = async (req, res) => {
         .status(400)
         .json({ message: "Email and password are required" });
     }
-
     // Step 2 - find user in database by email
-    const [rows] = await pool.query("SELECT * FROM users WHERE email = ?", [
-      email,
-    ]);
+    const [rows] = await pool.query("SELECT * FROM user_tbl WHERE email = ?", [email]);
 
     const user = rows[0];
 
@@ -24,7 +21,8 @@ export const login = async (req, res) => {
     }
 
     // Step 4 - check password (plain text comparison without bcrypt)
-    if (user.password !== password) {
+    const encodedPassword = Buffer.from(password).toString("base64");
+    if (user.password !== encodedPassword) {
       return res.status(401).json({ message: "Invalid password" });
     }
 
