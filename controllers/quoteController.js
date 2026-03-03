@@ -90,8 +90,15 @@ export const add_quote_process = async (req, res) => {
       product_data, custom_product_data,
       total_controller_price, total_feet_price,
       discount_percentage, gst_percentage, gst, main_total,
-      notes, adminnotes,
+      notes, adminnotes, annotation_data,
     } = req.body;
+
+    // product_data / custom_product_data may arrive as JSON strings (multipart) or arrays (JSON body)
+    const parseField = (val) => {
+      if (!val) return [];
+      if (typeof val === "string") return JSON.parse(val);
+      return val;
+    };
 
     const data = {
       user_id,
@@ -104,8 +111,8 @@ export const add_quote_process = async (req, res) => {
       state,
       country,
       post_code,
-      product_data: JSON.stringify(product_data || []),
-      custom_product_data: JSON.stringify(custom_product_data || []),
+      product_data: JSON.stringify(parseField(product_data)),
+      custom_product_data: JSON.stringify(parseField(custom_product_data)),
       total_controller_price: total_controller_price || 0,
       total_feet_price: total_feet_price || 0,
       discount_percentage: discount_percentage || 0,
@@ -126,6 +133,56 @@ export const add_quote_process = async (req, res) => {
       const year = new Date().getFullYear().toString().slice(2);
       const quote_no = `QTE${year}00${quote_id}`;
       await pool.query("UPDATE quote_tbl SET quote_no = ? WHERE quote_id = ?", [quote_no, quote_id]);
+
+      // Insert annotation rows + uploaded images (mirrors insert_annotation_data_new)
+      const annotations = parseField(annotation_data);
+      const files = req.files || [];
+
+      for (let i = 0; i < annotations.length; i++) {
+        const ann = annotations[i];
+        const index = i + 1; // 1-based to match PHP field naming
+
+        const ann_row = {
+          quote_id,
+          identify_image_name: ann.identify_image_name || "",
+          sft_count: ann.sft_count || 0,
+          divide: ann.divide || 0,
+          total_numerical_box: ann.total_numerical_box || 0,
+          unit_price: ann.unit_price || 0,
+          total_amount: ann.total_amount || 0,
+          no_peaks: ann.no_peaks || 0,
+          no_jumper: ann.no_jumper || 0,
+          color: ann.color || "",
+          required: ann.required || "",
+          created_at: now(),
+        };
+
+        const [ann_result] = await pool.query("INSERT INTO annotation_image_tbl SET ?", [ann_row]);
+        const annotation_image_id = ann_result.insertId;
+
+        // Match uploaded files for this annotation index
+        // preview-image_N_*  → drawnLines
+        // preview-image-edit_N_* → fullyEdited
+        const image_batch = files
+          .filter((f) =>
+            f.fieldname.startsWith(`preview-image-edit_${index}_`) ||
+            f.fieldname.startsWith(`preview-image_${index}_`)
+          )
+          .map((f) => [
+            quote_id,
+            annotation_image_id,
+            `uploads/${f.filename}`,
+            f.fieldname.startsWith(`preview-image-edit_${index}_`) ? "fullyEdited" : "drawnLines",
+            now(),
+          ]);
+
+        if (image_batch.length > 0) {
+          await pool.query(
+            "INSERT INTO quote_images_tbl (quote_id, annotation_image_id, image_url, type, created_at) VALUES ?",
+            [image_batch]
+          );
+        }
+      }
 
       return res.status(200).json({ success: true, status_code: "1", message: "Quote added successful.", quote_id, quote_no });
     } else {

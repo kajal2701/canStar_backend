@@ -1,4 +1,22 @@
 import express from "express";
+import multer from "multer";
+import path from "path";
+import { fileURLToPath } from "url";
+import fs from "fs";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const uploadDir = path.join(__dirname, "../uploads");
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, uploadDir),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, `${Date.now()}_${Math.random().toString(36).slice(2)}${ext}`);
+  },
+});
+const upload = multer({ storage }).any();
+
 import {
   manage_quote,
   getProductdata,
@@ -28,7 +46,7 @@ router.get("/manage_quote", manage_quote);
 router.get("/get_product_data", getProductdata);
 router.get("/get_colors", getColor);
 router.get("/get_provinces", getProvince);
-router.post("/add_quote_process", add_quote_process);
+router.post("/add_quote_process", upload, add_quote_process);
 router.get("/view_quote/:quote_id", view_quote);
 router.get("/view_quote_payment/:quote_id", view_quote_payment);
 router.get("/edit_quote/:quote_id", edit_quote);
