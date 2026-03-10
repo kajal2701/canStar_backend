@@ -554,6 +554,97 @@ export const schedule_installation = async (req, res) => {
   }
 };
 
+// GET /quote/installs2
+export const installs2 = async (req, res) => {
+  try {
+    const paymentDetailsQuery = `
+      SELECT quote_payment.*,
+        online_payment_details.etransfer_image,
+        online_payment_details.payment_method,
+        online_payment_details.status as payment_status
+      FROM quote_payment
+      LEFT JOIN online_payment_details ON online_payment_details.payment_id = quote_payment.payment_id
+      WHERE quote_payment.quote_id = ?
+    `;
+
+    // Upcoming installations (future dates)
+    const [upcoming] = await pool.query(`
+      SELECT quote_tbl.*,
+        CONCAT(user_tbl.fname,' ',user_tbl.lname) as salesman,
+        COALESCE(SUM(annotation_image_tbl.total_numerical_box), 0) as total_numerical_box
+      FROM quote_tbl
+      JOIN user_tbl ON user_tbl.user_id = quote_tbl.user_id
+      LEFT JOIN annotation_image_tbl ON annotation_image_tbl.quote_id = quote_tbl.quote_id
+      WHERE quote_tbl.status = 3
+        AND quote_tbl.installation_date IS NOT NULL
+        AND quote_tbl.installation_date != ''
+        AND quote_tbl.installation_date >= ?
+      GROUP BY quote_tbl.quote_id
+      ORDER BY quote_tbl.installation_date ASC
+    `, [today()]);
+
+    for (const quote of upcoming) {
+      const [payments] = await pool.query(paymentDetailsQuery, [quote.quote_id]);
+      quote.payment_details = payments;
+    }
+
+    // Past installations where invoice NOT sent
+    const [past_pending_invoice] = await pool.query(`
+      SELECT quote_tbl.*,
+        CONCAT(user_tbl.fname,' ',user_tbl.lname) as salesman,
+        COALESCE(SUM(annotation_image_tbl.total_numerical_box), 0) as total_numerical_box
+      FROM quote_tbl
+      JOIN user_tbl ON user_tbl.user_id = quote_tbl.user_id
+      LEFT JOIN annotation_image_tbl ON annotation_image_tbl.quote_id = quote_tbl.quote_id
+      WHERE quote_tbl.status = 3
+        AND quote_tbl.installation_date IS NOT NULL
+        AND quote_tbl.installation_date != ''
+        AND quote_tbl.installation_date < ?
+        AND (quote_tbl.invoice_date IS NULL OR quote_tbl.invoice_date = '')
+      GROUP BY quote_tbl.quote_id
+      ORDER BY quote_tbl.installation_date DESC
+    `, [today()]);
+
+    for (const quote of past_pending_invoice) {
+      const [payments] = await pool.query(paymentDetailsQuery, [quote.quote_id]);
+      quote.payment_details = payments;
+    }
+
+    // Non-scheduled jobs (confirmed but no installation date)
+    const [non_scheduled] = await pool.query(`
+      SELECT quote_tbl.*,
+        CONCAT(user_tbl.fname,' ',user_tbl.lname) as salesman,
+        COALESCE(SUM(annotation_image_tbl.total_numerical_box), 0) as total_numerical_box
+      FROM quote_tbl
+      JOIN user_tbl ON user_tbl.user_id = quote_tbl.user_id
+      LEFT JOIN annotation_image_tbl ON annotation_image_tbl.quote_id = quote_tbl.quote_id
+      LEFT JOIN quote_payment ON quote_payment.quote_id = quote_tbl.quote_id
+      LEFT JOIN online_payment_details ON online_payment_details.payment_id = quote_payment.payment_id
+      WHERE quote_tbl.status = 3
+        AND online_payment_details.status = 1
+        AND (quote_tbl.installation_date IS NULL OR quote_tbl.installation_date = '')
+      GROUP BY quote_tbl.quote_id
+      ORDER BY quote_tbl.created_at DESC
+    `);
+
+    for (const quote of non_scheduled) {
+      const [payments] = await pool.query(paymentDetailsQuery, [quote.quote_id]);
+      quote.payment_details = payments;
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        upcoming_installations: upcoming,
+        past_installations_pending_invoice: past_pending_invoice,
+        non_scheduled_jobs: non_scheduled,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 // GET /quote/installs?user_id=X&role=Y
 export const installs = async (req, res) => {
   try {

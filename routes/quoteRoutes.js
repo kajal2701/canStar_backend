@@ -38,6 +38,7 @@ import {
   payment_receive,
   schedule_installation,
   installs,
+  installs2,
 } from "../controllers/quoteController.js";
 
 const router = express.Router();
@@ -62,5 +63,6 @@ router.post("/update_quote", update_quote);
 router.post("/payment_receive", payment_receive);
 router.post("/schedule_installation", schedule_installation);
 router.get("/installs", installs);
+router.get("/installs2", installs2);
 
 export default router;
