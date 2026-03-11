@@ -270,9 +270,55 @@ export const view_quote_payment = async (req, res) => {
 export const edit_quote = async (req, res) => {
   try {
     const { quote_id } = req.params;
+
     const [[quote]] = await pool.query(
       "SELECT * FROM quote_tbl WHERE quote_id = ?", [quote_id]
     );
+    if (!quote) return res.status(404).json({ success: false, message: "Quote not found" });
+
+    // Access images (plug and controller)
+    const [[access_image_plug]] = await pool.query(
+      "SELECT * FROM access_image_tbl WHERE quote_id = ? AND access_type = 'plug'", [quote_id]
+    );
+    if (access_image_plug && access_image_plug.data_type == 1 && typeof access_image_plug.data === "string") {
+      try { access_image_plug.data = JSON.parse(access_image_plug.data); } catch (e) {}
+    }
+    quote.access_image_plug = access_image_plug || null;
+
+    const [[access_image_controller]] = await pool.query(
+      "SELECT * FROM access_image_tbl WHERE quote_id = ? AND access_type = 'controller'", [quote_id]
+    );
+    if (access_image_controller && access_image_controller.data_type == 1 && typeof access_image_controller.data === "string") {
+      try { access_image_controller.data = JSON.parse(access_image_controller.data); } catch (e) {}
+    }
+    quote.access_image_controller = access_image_controller || null;
+
+    // Annotation images with nested images
+    const [annotation_image] = await pool.query(
+      "SELECT * FROM annotation_image_tbl WHERE quote_id = ?", [quote_id]
+    );
+    for (const row of annotation_image) {
+      const [images] = await pool.query(
+        "SELECT * FROM quote_images_tbl WHERE annotation_image_id = ?",
+        [row.annotation_image_id]
+      );
+      row.images = images;
+    }
+    quote.annotation_image = annotation_image;
+
+    // Enrich products with product_description and price
+    quote.products = JSON.parse(quote.product_data || "[]");
+    for (let i = 0; i < quote.products.length; i++) {
+      const [[pd]] = await pool.query(
+        "SELECT product_description, price FROM product_tbl WHERE product_title = ?",
+        [quote.products[i].product]
+      );
+      quote.products[i].product_description = pd?.product_description || "";
+      quote.products[i].price = pd?.price || "";
+    }
+
+    quote.custom_product_data = JSON.parse(quote.custom_product_data || "[]");
+
     const [products] = await pool.query("SELECT * FROM product_tbl WHERE type = 1 AND status = 1");
     const [colors] = await pool.query("SELECT * FROM color_tbl");
     const [provinces] = await pool.query("SELECT * FROM taxrates");
@@ -295,15 +341,27 @@ export const edit_quote_process = async (req, res) => {
       product_data, custom_product_data,
       total_controller_price, total_feet_price,
       discount_percentage, gst_percentage, gst, main_total,
-      notes, adminnotes,
+      notes, adminnotes, annotation_data,
     } = req.body;
+
+    const parseField = (val) => {
+      if (!val) return [];
+      if (typeof val === "string") return JSON.parse(val);
+      return val;
+    };
+
+    // Capture old main_total before updating (for payment recalculation)
+    const [[old_quote]] = await pool.query(
+      "SELECT main_total FROM quote_tbl WHERE quote_id = ?", [quote_id]
+    );
+    const old_main_total = parseFloat(old_quote?.main_total || 0);
 
     const data = {
       fname, lname, email, phone,
       address: street,
       city, state, country, post_code,
-      product_data: JSON.stringify(product_data || []),
-      custom_product_data: JSON.stringify(custom_product_data || []),
+      product_data: JSON.stringify(parseField(product_data)),
+      custom_product_data: JSON.stringify(parseField(custom_product_data)),
       total_controller_price: total_controller_price || 0,
       total_feet_price: total_feet_price || 0,
       discount_percentage: discount_percentage || 0,
@@ -319,6 +377,118 @@ export const edit_quote_process = async (req, res) => {
       "UPDATE quote_tbl SET ? WHERE quote_id = ?",
       [data, quote_id]
     );
+
+    // Recalculate pending payment if main_total changed
+    const new_main_total = parseFloat(main_total || 0);
+    if (old_main_total !== new_main_total) {
+      const [[payment_record]] = await pool.query(
+        "SELECT * FROM quote_payment WHERE quote_id = ?", [quote_id]
+      );
+      if (payment_record) {
+        const [[confirmed_row]] = await pool.query(
+          "SELECT COALESCE(SUM(amount), 0) as total FROM online_payment_details WHERE quote_id = ? AND status = 1",
+          [quote_id]
+        );
+        let confirmed = parseFloat(confirmed_row?.total || 0);
+        if (!confirmed) {
+          confirmed = parseFloat(payment_record.part_payment_amount || 0);
+        }
+        let new_pending = parseFloat((new_main_total - confirmed).toFixed(2));
+        if (new_pending < 0) new_pending = 0;
+        const payment_status = new_pending <= 0 ? 1 : 0;
+        await pool.query(
+          "UPDATE quote_payment SET pending_payment_amount = ?, status = ? WHERE quote_id = ?",
+          [new_pending, payment_status, quote_id]
+        );
+      }
+    }
+
+    // Edit annotation data (mirrors PHP edit_annotation_data_new__)
+    const annotations = parseField(annotation_data);
+    const files = req.files || [];
+
+    // Get existing annotation IDs for this quote
+    const [existing_annotations] = await pool.query(
+      "SELECT annotation_image_id FROM annotation_image_tbl WHERE quote_id = ?", [quote_id]
+    );
+    const existing_annotation_ids = existing_annotations.map((r) => r.annotation_image_id);
+    const processed_annotation_ids = [];
+    const image_data_batch = [];
+
+    for (let i = 0; i < annotations.length; i++) {
+      const ann = annotations[i];
+      const index = i + 1; // 1-based to match file field naming
+
+      const ann_row = {
+        quote_id,
+        identify_image_name: ann.identify_image_name || "",
+        sft_count: ann.sft_count || 0,
+        divide: ann.divide || 0,
+        total_numerical_box: ann.total_numerical_box || 0,
+        unit_price: ann.unit_price || 0,
+        total_amount: ann.total_amount || 0,
+        no_peaks: ann.no_peaks || 0,
+        no_jumper: ann.no_jumper || 0,
+        color: ann.color || "",
+        required: ann.required || "",
+        created_at: now(),
+      };
+
+      let current_annotation_id;
+      if (ann.annotation_image_id) {
+        // UPDATE existing annotation
+        await pool.query(
+          "UPDATE annotation_image_tbl SET ? WHERE annotation_image_id = ?",
+          [ann_row, ann.annotation_image_id]
+        );
+        current_annotation_id = ann.annotation_image_id;
+      } else {
+        // INSERT new annotation
+        const [ann_result] = await pool.query("INSERT INTO annotation_image_tbl SET ?", [ann_row]);
+        current_annotation_id = ann_result.insertId;
+      }
+      processed_annotation_ids.push(current_annotation_id);
+
+      // Existing images to keep (passed in annotation_data as existing_images array)
+      const existing_images = ann.existing_images || [];
+      for (const img of existing_images) {
+        image_data_batch.push([quote_id, current_annotation_id, img.image_url, img.type, now()]);
+      }
+
+      // New uploaded files for this annotation index
+      const new_files = files.filter((f) =>
+        f.fieldname.startsWith(`preview-image-edit_${index}_`) ||
+        f.fieldname.startsWith(`preview-image_${index}_`)
+      );
+      for (const f of new_files) {
+        image_data_batch.push([
+          quote_id,
+          current_annotation_id,
+          `uploads/${f.filename}`,
+          f.fieldname.startsWith(`preview-image-edit_${index}_`) ? "fullyEdited" : "drawnLines",
+          now(),
+        ]);
+      }
+    }
+
+    // Delete annotations that were removed
+    const deleted_ids = existing_annotation_ids.filter(
+      (id) => !processed_annotation_ids.includes(id)
+    );
+    if (deleted_ids.length > 0) {
+      await pool.query("DELETE FROM quote_images_tbl WHERE annotation_image_id IN (?)", [deleted_ids]);
+      await pool.query("DELETE FROM annotation_image_tbl WHERE annotation_image_id IN (?)", [deleted_ids]);
+    }
+
+    // Replace images for processed annotations: delete old, insert new+kept
+    if (image_data_batch.length > 0) {
+      const updated_ann_ids = [...new Set(image_data_batch.map((r) => r[1]))];
+      await pool.query("DELETE FROM quote_images_tbl WHERE annotation_image_id IN (?)", [updated_ann_ids]);
+      await pool.query(
+        "INSERT INTO quote_images_tbl (quote_id, annotation_image_id, image_url, type, created_at) VALUES ?",
+        [image_data_batch]
+      );
+    }
 
     if (result.affectedRows > 0) {
       return res.status(200).json({ success: true, status_code: "1", message: "Quote Edit sucessfully." });
