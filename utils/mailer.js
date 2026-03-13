@@ -26,5 +26,14 @@ export const sendMail = async ({ to, cc, subject, html }) => {
     html,
   };
   if (cc) mailOptions.cc = cc;
-  return transporter.sendMail(mailOptions);
+  const info = await transporter.sendMail(mailOptions);
+  console.log(`[MAIL] Sent to=${to} subject="${subject}" messageId=${info.messageId}`);
+  return info;
 };
+
+// Verify SMTP connection — call once on server start or from test route
+export const verifyMailer = () =>
+  transporter.verify().then(() => {
+    console.log("[MAIL] SMTP connection OK");
+    return true;
+  });

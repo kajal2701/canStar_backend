@@ -97,7 +97,7 @@ export async function sendCustomerQuoteEmail(quote_id, is_updated = false) {
   const subject = is_updated
     ? `Updated Quote from Canstar Light [${formatDate(quote.created_at)}]`
     : `Canstar Light Quote [${formatDate(quote.created_at)}]`;
-
+  console.log(`Sending quote email to ${quote.email} with subject "${subject}"`);
   await sendMail({
     to: quote.email,
     cc: "canstarlightca@gmail.com",
