@@ -51,7 +51,7 @@ router.post("/add_quote_process", upload, add_quote_process);
 router.get("/view_quote/:quote_id", view_quote);
 router.get("/view_quote_payment/:quote_id", view_quote_payment);
 router.get("/edit_quote/:quote_id", edit_quote);
-router.post("/edit_quote_process", edit_quote_process);
+router.post("/edit_quote_process", upload, edit_quote_process);
 router.post("/send_for_approval", send_for_approval);
 router.post("/send_for_approve", send_for_approve);
 router.post("/delete_quote", delete_quote);

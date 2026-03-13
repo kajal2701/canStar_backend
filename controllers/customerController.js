@@ -28,7 +28,7 @@ export const add_customer_process = async (req, res) => {
       return res.status(200).json({
         success: false,
         status_code: 0,
-        message: "This email id already Csutomer. Please try again.",
+        message: "This email id already Customer. Please try again.",
       });
     }
 
@@ -39,7 +39,7 @@ export const add_customer_process = async (req, res) => {
     );
 
     if (result.affectedRows > 0) {
-      return res.status(200).json({ success: true, status_code: "1", message: "Csutomer added successful." });
+      return res.status(200).json({ success: true, status_code: "1", message: "Customer added successful." });
     } else {
       return res.status(200).json({ success: false, status_code: "0", message: "failed." });
     }
