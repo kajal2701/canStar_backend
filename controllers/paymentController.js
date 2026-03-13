@@ -1,4 +1,5 @@
 import pool from "../db.js";
+import { sendPaymentReceiveAdmin } from "../utils/emailHelper.js";
 
 const now = () => new Date().toISOString().slice(0, 19).replace("T", " ");
 
@@ -65,7 +66,7 @@ export const processPayment = async (req, res) => {
       ]);
       if (result.affectedRows > 0) {
         await quotedata_changes(data);
-        // TODO: send payment_receive_admin email (SMTP integration needed)
+        sendPaymentReceiveAdmin(quote_id).catch(() => {});
       }
       return res.status(200).json({ success: true, status_code: "1", message: "Credit card payment successfully!" });
     } else if (payment_method === "etransfer") {
@@ -84,7 +85,7 @@ export const processPayment = async (req, res) => {
       ]);
       if (result.affectedRows > 0) {
         await quotedata_changes(data);
-        // TODO: send payment_receive_admin email (SMTP integration needed)
+        sendPaymentReceiveAdmin(quote_id).catch(() => {});
       }
       const message = `You still need to complete the payment from your bank account.\nPlease send an e-Transfer of $${amount} to info@canstarlight.ca`;
       return res.status(200).json({ success: true, status_code: "1", message });
@@ -101,7 +102,7 @@ export const processPayment = async (req, res) => {
       ]);
       if (result.affectedRows > 0) {
         await quotedata_changes(data);
-        // TODO: send payment_receive_admin email (SMTP integration needed)
+        sendPaymentReceiveAdmin(quote_id).catch(() => {});
       }
       return res.status(200).json({ success: true, status_code: "1", message: "Cash payment successfully!" });
     }
@@ -132,7 +133,7 @@ export const processPaymentfinal = async (req, res) => {
         },
       ]);
       if (result.affectedRows > 0) {
-        // TODO: send final_payment_receive_admin email (SMTP integration needed)
+        sendPaymentReceiveAdmin(quote_id, true).catch(() => {});
       }
       return res.status(200).json({ success: true, status_code: "1", message: "Credit card payment successfully!" });
     } else if (payment_method === "etransfer") {
@@ -150,7 +151,7 @@ export const processPaymentfinal = async (req, res) => {
         },
       ]);
       if (result.affectedRows > 0) {
-        // TODO: send final_payment_receive_admin email (SMTP integration needed)
+        sendPaymentReceiveAdmin(quote_id, true).catch(() => {});
       }
       const message = `You still need to complete the payment from your bank account.\nPlease send an e-Transfer of $${amount} to info@canstarlight.ca`;
       return res.status(200).json({ success: true, status_code: "1", message });
@@ -166,7 +167,7 @@ export const processPaymentfinal = async (req, res) => {
         },
       ]);
       if (result.affectedRows > 0) {
-        // TODO: send final_payment_receive_admin email (SMTP integration needed)
+        sendPaymentReceiveAdmin(quote_id, true).catch(() => {});
       }
       return res.status(200).json({ success: true, status_code: "1", message: "Cash payment successfully!" });
     }

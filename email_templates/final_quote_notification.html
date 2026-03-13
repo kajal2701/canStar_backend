@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Your Final Invoice Has Arrived</title>
+    <style>
+        body { font-family: 'Poppins', sans-serif; background-color: #f4f4f4; margin: 0; padding: 20px; }
+        .email-container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 8px rgba(0,0,0,0.1); border: 1px solid #fa896b; }
+        .header { background-color: #fa896b; color: white; text-align: center; padding: 20px 0; font-size: 28px; font-weight: 600; }
+        .content { padding: 30px; font-size: 16px; color: #333; line-height: 1.7; }
+        .content p { margin-bottom: 20px; }
+        .invoice-summary { background-color: #f9f9f9; border-left: 4px solid #fa896b; padding: 15px; margin-bottom: 25px; border-radius: 6px; font-size: 16px; }
+        .invoice-summary p { margin: 0; line-height: 1.5; }
+        .cta-button { display: inline-block; background-color: #fa896b; color: #ffffff !important; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-size: 16px; font-weight: 500; }
+        .footer { text-align: center; background-color: #f4f4f4; padding: 20px; font-size: 12px; color: #777; }
+        .footer a { color: #777; text-decoration: none; }
+        .review-section { text-align: center; margin-top: 25px; background: #fff8f6; border-radius: 6px; padding: 15px; border: 1px solid #fa896b3a; }
+        .review-section a { color: #fa896b; text-decoration: none; font-weight: 500; }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <div class="header">Final Invoice Payment</div>
+        <div class="content">
+            <p>Hi <strong>{{fname}} {{lname}}</strong>,</p>
+            <p>Thank you for considering <strong>Canstar Light</strong>. Here is your final invoice with the remaining amount:</p>
+            <div class="invoice-summary">
+                <p><strong>Invoice Number:</strong> #INV250{{payment_id}}</p>
+                <p><strong>Issue Date:</strong> {{formattedDate}}</p>
+                <p><strong>Balance Amount:</strong> ${{balanceAmount}}</p>
+            </div>
+            <p>To view the full details of your invoice and take further action, please click the button below:</p>
+            <p style="text-align:center;">
+                <a href="https://portal.canstarlights.ca/Users/quote_final_invoice/{{encryptedQuoteNo}}" class="cta-button">View Invoice</a>
+            </p>
+            <p>If you have any questions or need assistance, you can reach us at <a href="mailto:info@canstarlight.ca">info@canstarlight.ca</a>, call us at <strong>(780) 716-4210</strong>, or contact your quoting representative directly.</p>
+            <p>Thank you for choosing <strong>Canstar Lights</strong>! We truly appreciate your support.</p>
+            <div class="review-section">
+                <div style="text-align:center; font-size:28px; color:#fdc306; letter-spacing:4px;">★★★★★</div>
+                <p>If you're happy with our product and service, we'd love to hear from you! Please leave us a review on Google:</p>
+                <p><a href="https://g.page/r/CYkzgKnvOlXoEBM/review" target="_blank">Leave a Google Review</a></p>
+            </div>
+        </div>
+        <div class="footer">
+            <p>&copy; 2025 Canstar Light. All rights reserved.</p>
+            <p><a href="https://portal.canstarlights.ca/quote/termsconditions" target="_blank">Privacy Policy</a></p>
+        </div>
+    </div>
+</body>
+</html>

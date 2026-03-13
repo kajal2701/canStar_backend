@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Installation Scheduled</title>
+    <style>
+        body { font-family: 'Poppins', sans-serif; background-color: #f4f4f4; margin: 0; padding: 20px; }
+        .email-container { max-width: 650px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 8px rgba(0,0,0,0.1); border: 1px solid #007bff; }
+        .header { background-color: #007bff; color: white; text-align: center; padding: 20px 0; font-size: 24px; font-weight: 600; }
+        .content { padding: 30px; font-size: 16px; color: #333; line-height: 1.6; }
+        .content p { margin-bottom: 15px; }
+        .highlight-box { background-color: #f9f9f9; border-left: 4px solid #007bff; padding: 15px; margin-bottom: 20px; border-radius: 5px; }
+        .highlight-box p { margin: 0; }
+        .footer { text-align: center; background-color: #f4f4f4; padding: 20px; font-size: 12px; color: #777; }
+        .footer p { margin: 0; }
+        .footer a { color: #777; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <div class="header">Canstar Light Installation Scheduled!</div>
+        <div class="content">
+            <p>Hi <strong>{{fname}} {{lname}}</strong>,</p>
+            <p><strong>Important:</strong> Please review this email carefully, as it contains key information about your installation.</p>
+            <div class="highlight-box">
+                <p><strong>Site Preparation:</strong> Ensure all areas are cleared to allow ladder access.</p>
+            </div>
+            <div class="highlight-box">
+                <p><strong>Weather Notice:</strong> For the safety of our installation team, installations may be rescheduled in the event of inclement weather. If this occurs, we will contact you as soon as possible. Thank you for your patience and understanding.</p>
+            </div>
+            <h3>Installation Details</h3>
+            <p>Your Canstar Lights installation at <strong>{{address}}, {{city}}, {{state}}, {{country}}</strong> is scheduled to begin on <strong>{{installDate}}</strong>.</p>
+            <p>If your community or driveway requires a gate code or has special access instructions, please reply to this email with the necessary details for our installer.</p>
+            <h3>On Installation Day</h3>
+            <ul>
+                <li>Your installer will review the installation details with you upon arrival.</li>
+                <li>If you are not home, that's completely fine — your installer will call you upon arrival to go over the details.</li>
+                <li>If you are home towards the end of the installation, your installer will gladly help you get connected in person and walk you through the app.</li>
+            </ul>
+            <p>If you have any questions or need assistance, you can reach us at <a href="mailto:info@canstarlight.ca">info@canstarlight.ca</a>, call us at <a href="tel:+17807164210">(780) 716-4210</a>, or contact your quoting representative directly.</p>
+            <p>We sincerely appreciate your choice of <strong>Canstar Lights</strong> and look forward to serving you!</p>
+        </div>
+        <div class="footer">
+            <p>&copy; 2025 Canstar Light. All rights reserved.</p>
+            <p><a href="https://portal.canstarlights.ca/quote/termsconditions">Privacy Policy</a></p>
+        </div>
+    </div>
+</body>
+</html>

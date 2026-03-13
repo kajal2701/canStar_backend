@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Payment Confirmation</title>
+    <style>
+        body { font-family: 'Poppins', sans-serif; background-color: #f4f4f4; margin: 0; padding: 20px; }
+        .email-container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 8px rgba(0,0,0,0.1); border: 1px solid #28a745; }
+        .header { background-color: #28a745; color: white; text-align: center; padding: 20px 0; font-size: 24px; font-weight: 600; border: 1px solid #28a745; }
+        .content { padding: 30px; font-size: 16px; color: #333; line-height: 1.6; }
+        .content p { margin-bottom: 15px; }
+        .payment-summary { background-color: #f9f9f9; border-left: 4px solid #28a745; padding: 15px; margin-bottom: 20px; border-radius: 5px; font-size: 16px; }
+        .payment-summary p { margin: 0; line-height: 1.5; }
+        .cta-button { display: inline-block; background-color: #28a745; color: #ffffff !important; text-decoration: none; padding: 12px 24px; border-radius: 5px; font-size: 16px; font-weight: 500; text-align: center; }
+        .footer { text-align: center; background-color: #f4f4f4; padding: 20px; font-size: 12px; color: #777; }
+        .footer p { margin: 0; }
+        .footer a { color: #777; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <div class="header">Payment Confirmation</div>
+        <div class="content">
+            <p>Hi Admin,</p>
+            <p>A payment has been sent by <strong>{{fname}} {{lname}}</strong>.</p>
+            <div class="payment-summary">
+                <p><strong>Quote Number:</strong> #{{quote_no}}</p>
+                <p><strong>Method of Payment:</strong> {{paymentMethod}}</p>
+                <p><strong>Payment Date:</strong> {{paymentDate}}</p>
+                <p><strong>Liner Feet:</strong> {{total_numerical_box}}</p>
+                <p><strong>Total Amount:</strong> ${{totalPaid}}</p>
+            </div>
+            <p>To acknowledge receipt of payment, please click the button below:</p>
+            <p style="text-align: center;">
+                <a href="https://portal.canstarlights.ca/Quote/view_quote_admin/{{quote_id}}" class="cta-button">Payment Received</a>
+            </p>
+        </div>
+        <div class="footer">
+            <p>&copy; 2025 Canstar Light. All rights reserved.</p>
+            <p><a href="https://portal.canstarlights.ca/quote/termsconditions">Privacy Policy</a></p>
+        </div>
+    </div>
+</body>
+</html>
