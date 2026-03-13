@@ -1,12 +1,12 @@
 import nodemailer from "nodemailer";
 
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || "mail.portal.canstarlight.ca",
-  port: parseInt(process.env.SMTP_PORT || "465"),
-  secure: true, // SSL on port 465
+  host: process.env.SMTP_HOST || "smtp.gmail.com",
+  port: parseInt(process.env.SMTP_PORT || "587"),
+  secure: false, // TLS on port 587
   auth: {
-    user: process.env.SMTP_USER || "notification@portal.canstarlights.ca",
-    pass: process.env.SMTP_PASS || "notification@portal.canstarlights.ca",
+    user: process.env.SMTP_USER || "notifications@canstarlights.ca",
+    pass: process.env.SMTP_PASS || "tocz azws eune bcvm",
   },
 });
 
@@ -20,7 +20,7 @@ const transporter = nodemailer.createTransport({
  */
 export const sendMail = async ({ to, cc, subject, html }) => {
   const mailOptions = {
-    from: '"CanStar Lights" <notification@portal.canstarlights.ca>',
+    from: '"CanStar Lights" <notifications@canstarlights.ca>',
     to,
     subject,
     html,
