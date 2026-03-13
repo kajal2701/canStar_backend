@@ -61,6 +61,7 @@ export const processPayment = async (req, res) => {
           transaction_id: order_id,
           payment_method,
           amount,
+          status: 0,
           created_at: now(),
         },
       ]);
@@ -96,6 +97,7 @@ export const processPayment = async (req, res) => {
           quote_id,
           payment_id,
           amount,
+          status: 0,
           payment_method,
           created_at: now(),
         },
