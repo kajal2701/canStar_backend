@@ -247,8 +247,8 @@ export const view_quote = async (req, res) => {
     quote.extra_work_data = quote.extra_work_data ? JSON.parse(quote.extra_work_data) : [];
 
     const [[payment_details]] = await pool.query(
-      `SELECT quote_payment.*, online_payment_details.etransfer_image, online_payment_details.payment_method,
-      online_payment_details.status as payment_status 
+      `SELECT quote_payment.*, online_payment_details.etransfer_image, online_payment_details.payment_method
+     
        FROM quote_payment
        LEFT JOIN online_payment_details ON online_payment_details.payment_id = quote_payment.payment_id
        WHERE quote_payment.quote_id = ?`,
@@ -684,7 +684,7 @@ export const payment_receive = async (req, res) => {
 
     // Mark online payment as confirmed
     await pool.query(
-      "UPDATE online_payment_details SET amount = ?, status = 1 WHERE payment_id = ?",
+      "UPDATE online_payment_details SET amount = ?, status = 1 WHERE online_payment_id = ?",
       [amount, online_payment_id]
     );
 
