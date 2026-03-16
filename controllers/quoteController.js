@@ -38,18 +38,32 @@ export const manage_quote = async (req, res) => {
 
     const [quotes] = await pool.query(query, params);
 
-    // Attach payment details for each quote
+    if (quotes.length === 0) {
+      return res.status(200).json({ success: true, data: [] });
+    }
+
+    // Single query for all payment details — eliminates N+1
+    const quoteIds = quotes.map((q) => q.quote_id);
+    const [allPayments] = await pool.query(
+      `SELECT quote_payment.*, online_payment_details.etransfer_image,
+        online_payment_details.payment_method,
+        online_payment_details.status as payment_status
+       FROM quote_payment
+       LEFT JOIN online_payment_details ON online_payment_details.payment_id = quote_payment.payment_id
+       WHERE quote_payment.quote_id IN (?)`,
+      [quoteIds]
+    );
+
+    // Group payments by quote_id and attach
+    const paymentsByQuoteId = {};
+    for (const payment of allPayments) {
+      if (!paymentsByQuoteId[payment.quote_id]) {
+        paymentsByQuoteId[payment.quote_id] = [];
+      }
+      paymentsByQuoteId[payment.quote_id].push(payment);
+    }
     for (const quote of quotes) {
-      const [payments] = await pool.query(
-        `SELECT quote_payment.*, online_payment_details.etransfer_image,
-          online_payment_details.payment_method,
-          online_payment_details.status as payment_status
-         FROM quote_payment
-         LEFT JOIN online_payment_details ON online_payment_details.payment_id = quote_payment.payment_id
-         WHERE quote_payment.quote_id = ?`,
-        [quote.quote_id]
-      );
-      quote.payment_details = payments;
+      quote.payment_details = paymentsByQuoteId[quote.quote_id] || [];
     }
 
     return res.status(200).json({ success: true, data: quotes });
