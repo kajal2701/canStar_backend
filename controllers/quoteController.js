@@ -845,6 +845,79 @@ export const installs2 = async (req, res) => {
   }
 };
 
+// POST /quote/saveQuoteSanction
+// Body: { quote_id, sanction_reason, sanction_notes? }
+const SANCTION_REASONS = { 1: "Cost", 2: "Complexity", 3: "Better price from competitor", 4: "Other" };
+
+export const saveQuoteSanction = async (req, res) => {
+  try {
+    const { quote_id, sanction_reason, sanction_notes } = req.body;
+
+    if (!quote_id) {
+      return res.status(400).json({ success: false, message: "quote_id is required." });
+    }
+
+    const reason = parseInt(sanction_reason);
+    if (!SANCTION_REASONS[reason]) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid sanction_reason. Allowed values: ${Object.entries(SANCTION_REASONS).map(([k, v]) => `${k} (${v})`).join(", ")}.`,
+      });
+    }
+
+    if (reason === 4 && (!sanction_notes || !sanction_notes.toString().trim())) {
+      return res.status(400).json({ success: false, message: "sanction_notes is required when reason is 'Other'." });
+    }
+
+    const data = {
+      sanction_reason: reason,
+      sanction_notes: reason === 4 ? sanction_notes.toString().trim() : null,
+      status: 6, // sanctioned
+    };
+
+    const [result] = await pool.query(
+      "UPDATE quote_tbl SET ? WHERE quote_id = ?",
+      [data, quote_id]
+    );
+
+    if (result.affectedRows > 0) {
+      return res.status(200).json({ success: true, status_code: "1", message: "Quote sanction saved successfully." });
+    } else {
+      return res.status(404).json({ success: false, message: "Quote not found." });
+    }
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// POST /quote/saveFollowupDate
+// Body: { quote_id, followup_date }
+export const saveFollowupDate = async (req, res) => {
+  try {
+    const { quote_id, followup_date } = req.body;
+
+    if (!quote_id) {
+      return res.status(400).json({ success: false, message: "quote_id is required." });
+    }
+    if (!followup_date) {
+      return res.status(400).json({ success: false, message: "followup_date is required." });
+    }
+
+    const [result] = await pool.query(
+      "UPDATE quote_tbl SET followup_date = ? WHERE quote_id = ?",
+      [followup_date, quote_id]
+    );
+
+    if (result.affectedRows > 0) {
+      return res.status(200).json({ success: true, status_code: "1", message: "Follow-up date saved successfully." });
+    } else {
+      return res.status(404).json({ success: false, message: "Quote not found." });
+    }
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 // GET /quote/installs?user_id=X&role=Y
 export const installs = async (req, res) => {
   try {
