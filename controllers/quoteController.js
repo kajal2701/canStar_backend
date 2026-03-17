@@ -533,7 +533,7 @@ export const send_for_approval = async (req, res) => {
       "UPDATE quote_tbl SET status = 2 WHERE quote_id = ?", [quote_id]
     );
     if (result.affectedRows > 0) {
-      sendNewQuoteNotification(quote_id).catch(() => { });
+      // sendNewQuoteNotification(quote_id).catch(() => { });
       return res.status(200).json({ success: true, status_code: 1, message: "Quote send successful." });
     } else {
       return res.status(200).json({ success: false, status_code: 0, message: "Something went wrong!" });
@@ -552,7 +552,7 @@ export const send_for_approve = async (req, res) => {
       "UPDATE quote_tbl SET status = 3 WHERE quote_id = ?", [quote_id]
     );
     if (result.affectedRows > 0) {
-      sendCustomerQuoteEmail(quote_id).catch(() => { });
+      // sendCustomerQuoteEmail(quote_id).catch(() => { });
       return res.status(200).json({ success: true, status_code: 1, message: "Quote approve successful." });
     } else {
       return res.status(200).json({ success: false, status_code: 0, message: "Something went wrong!" });
@@ -571,7 +571,7 @@ export const delete_quote = async (req, res) => {
       "UPDATE quote_tbl SET status = 5 WHERE quote_id = ?", [quote_id]
     );
     if (result.affectedRows > 0) {
-      sendDeleteQuoteEmail(quote_id).catch(() => { });
+      // sendDeleteQuoteEmail(quote_id).catch(() => { });
       return res.status(200).json({ success: true, status_code: "1", message: "Quote deleted successfully." });
     } else {
       return res.status(200).json({ success: false, status_code: "0", message: "failed." });
@@ -659,7 +659,7 @@ export const send_final_quote = async (req, res) => {
     await pool.query(
       "UPDATE quote_tbl SET invoice_date = ? WHERE quote_id = ?", [today(), quote_id]
     );
-    sendFinalQuoteNotification(quote_id).catch(() => { });
+    // sendFinalQuoteNotification(quote_id).catch(() => { });
     return res.status(200).json({ success: true, status_code: 1, message: "Final Quote send successful." });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
@@ -671,7 +671,7 @@ export const send_final_quote = async (req, res) => {
 export const resend_quote = async (req, res) => {
   try {
     const { quote_id } = req.body;
-    sendCustomerQuoteEmail(quote_id).catch(() => { });
+    // sendCustomerQuoteEmail(quote_id).catch(() => { });
     return res.status(200).json({ success: true, status_code: 1, message: "Resend Quote successful." });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
@@ -683,7 +683,7 @@ export const resend_quote = async (req, res) => {
 export const update_quote = async (req, res) => {
   try {
     const { quote_id } = req.body;
-    sendCustomerQuoteEmail(quote_id, true).catch(() => { });
+    // sendCustomerQuoteEmail(quote_id, true).catch(() => { });
     return res.status(200).json({ success: true, status_code: 1, message: "updated Quote resend successful." });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
@@ -716,8 +716,8 @@ export const payment_receive = async (req, res) => {
       [confirmed, pending_payment_amount, quote_payment_status, quote_id]
     );
 
-    sendPaymentConfirmation(quote_id).catch(() => { });
-    sendInvoiceFullPaymentReceipt(quote_id).catch(() => { });
+    // sendPaymentConfirmation(quote_id).catch(() => { });
+    // sendInvoiceFullPaymentReceipt(quote_id).catch(() => { });
     return res.status(200).json({
       success: true,
       status_code: 1,
@@ -740,7 +740,7 @@ export const schedule_installation = async (req, res) => {
     );
 
     if (result.affectedRows > 0) {
-      sendInstallationScheduled(quote_id).catch(() => { });
+      // sendInstallationScheduled(quote_id).catch(() => { });
       return res.status(200).json({
         success: true,
         status_code: "1",
