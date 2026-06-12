@@ -23,6 +23,20 @@ function encryptParam(value) {
   return combined.replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
 }
 
+// Reverse of encryptParam — decrypts AES-256-CBC token back to original value (quote_no)
+export function decryptParam(token) {
+  // Undo URL-safe base64: - → +, _ → /, re-pad with =
+  let b64 = token.replace(/-/g, "+").replace(/_/g, "/");
+  while (b64.length % 4 !== 0) b64 += "=";
+  const combined = Buffer.from(b64, "base64");
+  const iv = combined.subarray(0, 16);
+  const encryptedBase64 = combined.subarray(16).toString("utf8");
+  const decipher = crypto.createDecipheriv("aes-256-cbc", ENCRYPT_KEY, iv);
+  let decrypted = decipher.update(encryptedBase64, "base64", "utf8");
+  decrypted += decipher.final("utf8");
+  return decrypted;
+}
+
 function renderTemplate(templateName, vars) {
   const filePath = path.join(TEMPLATES_DIR, `${templateName}.html`);
   let html = fs.readFileSync(filePath, "utf8");
@@ -34,6 +48,10 @@ function renderTemplate(templateName, vars) {
 
 function formatDate(dateStr) {
   return new Date(dateStr).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+}
+
+function formatDateUTC(dateStr) {
+  return new Date(dateStr).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric", timeZone: "UTC" });
 }
 
 function addDays(dateStr, days) {
@@ -177,7 +195,7 @@ export async function sendInstallationScheduled(quote_id) {
   if (!quote) return;
 
   const installDate = quote.installation_date
-    ? formatDate(quote.installation_date)
+    ? formatDateUTC(quote.installation_date)
     : "[Date TBD]";
 
   const html = renderTemplate("installation_scheduled", {

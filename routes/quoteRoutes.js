@@ -24,6 +24,7 @@ import {
   getProvince,
   add_quote_process,
   view_quote,
+  view_quote_by_token,
   view_quote_payment,
   edit_quote,
   edit_quote_process,
@@ -51,6 +52,7 @@ router.get("/get_colors", getColor);
 router.get("/get_provinces", getProvince);
 router.post("/add_quote_process", upload, add_quote_process);
 router.get("/view_quote/:quote_id", view_quote);
+router.get("/view_quote_by_token/:token", view_quote_by_token);
 router.get("/view_quote_payment/:quote_id", view_quote_payment);
 router.get("/edit_quote/:quote_id", edit_quote);
 router.post("/edit_quote_process", upload, edit_quote_process);
