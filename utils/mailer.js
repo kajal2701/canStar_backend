@@ -1,6 +1,6 @@
 import axios from "axios";
 
-export const sendMail = async ({ to, cc, subject, html, from }) => {
+export const sendMail = async ({ to, cc, subject, html, from, replyTo }) => {
   const payload = {
     from: from || '"CanStar Lights" <notifications@canstarlights.ca>',
     to,
@@ -8,6 +8,7 @@ export const sendMail = async ({ to, cc, subject, html, from }) => {
     html,
   };
   if (cc) payload.cc = cc;
+  if (replyTo) payload.replyTo = replyTo;
 
   const response = await axios.post(
     "https://mailserver.automationlounge.com/api/v1/messages/send",

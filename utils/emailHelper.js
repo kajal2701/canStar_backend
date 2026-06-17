@@ -215,6 +215,42 @@ export async function sendInstallationScheduled(quote_id) {
   });
 }
 
+// schedule_installation: installer assigned notification → to installer
+export async function sendInstallerAssignedEmail(quote_id) {
+  const [[quote]] = await pool.query(
+    `SELECT quote_tbl.*,
+       CONCAT(installer.fname,' ',installer.lname) as installer_name,
+       installer.fname as installer_fname,
+       installer.email as installer_email
+     FROM quote_tbl
+     LEFT JOIN user_tbl AS installer ON installer.user_id = quote_tbl.installer_id
+     WHERE quote_tbl.quote_id = ?`,
+    [quote_id]
+  );
+  if (!quote || !quote.installer_email) return;
+
+  const installDate = quote.installation_date
+    ? formatDateUTC(quote.installation_date)
+    : "[Date TBD]";
+
+  const html = renderTemplate("installer_assigned", {
+    installer_fname: quote.installer_fname ?? "Installer",
+    quote_no: quote.quote_no,
+    customer_name: `${quote.fname} ${quote.lname}`,
+    address: quote.address ?? "",
+    city: quote.city ?? "",
+    state: quote.state ?? "",
+    country: quote.country ?? "",
+    installDate,
+  });
+
+  await sendMail({
+    to: quote.installer_email,
+    subject: `New Installation Assigned - ${quote.quote_no}`,
+    html,
+  });
+}
+
 // delete_quote: quote deleted → to customer
 export async function sendDeleteQuoteEmail(quote_id) {
   const [[quote]] = await pool.query(
@@ -246,7 +282,8 @@ export async function sendPaymentReceiveAdmin(quote_id, is_final = false) {
   const [[quote]] = await pool.query(
     `SELECT quote_tbl.*,
        CONCAT(user_tbl.fname,' ',user_tbl.lname) as salesman,
-       COALESCE(SUM(ann.total_numerical_box), 0) as total_numerical_box
+       COALESCE(SUM(ann.total_numerical_box), 0) as total_numerical_box,
+       GROUP_CONCAT(DISTINCT ann.color SEPARATOR ', ') as channel_color
      FROM quote_tbl
      JOIN user_tbl ON user_tbl.user_id = quote_tbl.user_id
      LEFT JOIN annotation_image_tbl ann ON ann.quote_id = quote_tbl.quote_id
@@ -278,6 +315,9 @@ export async function sendPaymentReceiveAdmin(quote_id, is_final = false) {
     salesman: quote.salesman,
     main_total: quote.main_total,
     total_numerical_box: quote.total_numerical_box ?? "-",
+    channel_color: quote.channel_color ?? "-",
+    admin_notes: quote.adminnotes ?? "None",
+    customer_notes: quote.notes ?? "None",
     paymentMethod: paymentMethod.charAt(0).toUpperCase() + paymentMethod.slice(1).replace(/_/g, " "),
     paymentDate,
     totalPaid,
@@ -323,6 +363,242 @@ export async function sendInvoiceFullPaymentReceipt(quote_id) {
   await sendMail({
     to: quote.email,
     subject: `Full Payment Received - Canstar Light`,
+    html,
+  });
+}
+
+// ─── Installation process emails ──────────────────────────────────────────────
+
+// on_the_way: installer is heading to the job site → to customer + CC quote person
+// Replies go to the quote person (salesman) and admin
+export async function sendOnTheWayEmail(quote_id, etaMinutes) {
+  const [[quote]] = await pool.query(
+    `SELECT quote_tbl.*,
+       CONCAT(salesman.fname,' ',salesman.lname) as salesman_name,
+       salesman.email as salesman_email,
+       CONCAT(installer_tbl.fname,' ',installer_tbl.lname) as installer_name
+     FROM quote_tbl
+     JOIN user_tbl AS salesman ON salesman.user_id = quote_tbl.user_id
+     LEFT JOIN user_tbl AS installer_tbl ON installer_tbl.user_id = quote_tbl.installer_id
+     WHERE quote_tbl.quote_id = ?`,
+    [quote_id]
+  );
+  if (!quote) return;
+
+  const html = renderTemplate("on_the_way", {
+    fname: quote.fname,
+    lname: quote.lname,
+    installer_name: quote.installer_name || "Your Installer",
+    eta: etaMinutes,
+    quote_no: quote.quote_no,
+    address: quote.address ?? "",
+    city: quote.city ?? "",
+  });
+
+  // Build replyTo: quote person (salesman) + admin
+  const replyToAddresses = [
+    quote.salesman_email,
+    "canstarlightca@gmail.com",
+  ].filter(Boolean).join(", ");
+
+  // Send to customer, CC the quote person (salesman)
+  await sendMail({
+    to: quote.email,
+    cc: quote.salesman_email || "canstarlightca@gmail.com",
+    subject: `Your Installer is On The Way! - Canstar Light`,
+    html,
+    replyTo: replyToAddresses,
+  });
+}
+
+// controller_box_confirmation: photo of proposed controller box location → customer
+export async function sendControllerBoxConfirmation(quote_id, photoUrl) {
+  const [[quote]] = await pool.query(
+    `SELECT quote_tbl.*,
+       CONCAT(salesman.fname,' ',salesman.lname) as salesman_name,
+       salesman.email as salesman_email
+     FROM quote_tbl
+     JOIN user_tbl AS salesman ON salesman.user_id = quote_tbl.user_id
+     WHERE quote_tbl.quote_id = ?`,
+    [quote_id]
+  );
+  if (!quote) return;
+
+  const html = renderTemplate("controller_box_confirmation", {
+    fname: quote.fname,
+    lname: quote.lname,
+    quote_no: quote.quote_no,
+    address: quote.address ?? "",
+    city: quote.city ?? "",
+    photo_url: photoUrl,
+  });
+
+  const replyToAddresses = [
+    quote.salesman_email,
+    "canstarlightca@gmail.com",
+  ].filter(Boolean).join(", ");
+
+  await sendMail({
+    to: quote.email,
+    cc: quote.salesman_email || "canstarlightca@gmail.com",
+    subject: `Controller Box Location Confirmation - Canstar Light`,
+    html,
+    replyTo: replyToAddresses,
+  });
+}
+
+// pre_assessment: assessment images + notes → customer
+export async function sendPreAssessmentEmail(quote_id, images, notes) {
+  const [[quote]] = await pool.query(
+    `SELECT quote_tbl.*,
+       CONCAT(salesman.fname,' ',salesman.lname) as salesman_name,
+       salesman.email as salesman_email
+     FROM quote_tbl
+     JOIN user_tbl AS salesman ON salesman.user_id = quote_tbl.user_id
+     WHERE quote_tbl.quote_id = ?`,
+    [quote_id]
+  );
+  if (!quote) return;
+
+  // Build notes section HTML
+  const notesHtml = notes?.trim()
+    ? `<div class="notes-box"><div class="notes-label">Installer Notes</div><div class="notes-text">${notes}</div></div>`
+    : "";
+
+  // Build images section HTML
+  let imagesHtml = "";
+  if (images && images.length > 0) {
+    imagesHtml = `<div class="images-section"><div class="images-label">Assessment Photos</div>`;
+    for (const img of images) {
+      imagesHtml += `<img src="${img}" alt="Assessment Photo" />`;
+    }
+    imagesHtml += `</div>`;
+  }
+
+  const html = renderTemplate("pre_assessment", {
+    fname: quote.fname,
+    lname: quote.lname,
+    quote_no: quote.quote_no,
+    address: quote.address ?? "",
+    city: quote.city ?? "",
+    notes_section: notesHtml,
+    images_section: imagesHtml,
+  });
+
+  const replyToAddresses = [
+    quote.salesman_email,
+    "canstarlightca@gmail.com",
+  ].filter(Boolean).join(", ");
+
+  await sendMail({
+    to: quote.email,
+    cc: quote.salesman_email || "canstarlightca@gmail.com",
+    subject: `Pre-Installation Assessment - Canstar Light`,
+    html,
+    replyTo: replyToAddresses,
+  });
+}
+
+// installation_complete: notify admin + salesman when installer finishes job
+export async function sendInstallationCompleteEmail(quote_id) {
+  const [[quote]] = await pool.query(
+    `SELECT quote_tbl.*,
+       CONCAT(salesman.fname,' ',salesman.lname) as salesman_name,
+       salesman.email as salesman_email
+     FROM quote_tbl
+     JOIN user_tbl AS salesman ON salesman.user_id = quote_tbl.user_id
+     WHERE quote_tbl.quote_id = ?`,
+    [quote_id]
+  );
+  if (!quote) return;
+
+  // Get the install process data for the summary
+  const [[process]] = await pool.query(
+    `SELECT ip.*, CONCAT(installer.fname,' ',installer.lname) as installer_name
+     FROM install_process_tbl ip
+     LEFT JOIN user_tbl AS installer ON installer.user_id = ip.installer_id
+     WHERE ip.quote_id = ?`,
+    [quote_id]
+  );
+
+  // Parse saved step data
+  const parseJson = (val) => {
+    if (!val) return {};
+    if (typeof val === "string") { try { return JSON.parse(val); } catch { return {}; } }
+    return val;
+  };
+
+  const prep = parseJson(process?.prep_data);
+  const timeEntry = parseJson(process?.time_entry_data);
+  const dropOff = parseJson(process?.drop_off_data);
+  const postInstall = parseJson(process?.post_install_data);
+
+  // Calculate duration
+  let duration = "—";
+  if (timeEntry.startTime && timeEntry.endTime) {
+    const [sh, sm] = timeEntry.startTime.split(":").map(Number);
+    const [eh, em] = timeEntry.endTime.split(":").map(Number);
+    let diffMin = (eh * 60 + em) - (sh * 60 + sm);
+    if (diffMin < 0) diffMin += 24 * 60;
+    duration = `${Math.floor(diffMin / 60)}h ${diffMin % 60}m`;
+  }
+
+  // Travel time
+  const travelHrs = dropOff?.travelTime?.hours || 0;
+  const travelMin = dropOff?.travelTime?.minutes || 0;
+  const travelTime = `${travelHrs}h ${travelMin}m`;
+
+  // Expenses
+  const totalExpenses = (timeEntry.expenses || [])
+    .reduce((s, e) => s + (parseFloat(e.amount) || 0), 0)
+    .toFixed(2);
+
+  // Photo count
+  const photoCount = (postInstall?.images || []).length;
+
+  // Build checklist summary HTML
+  const checklist = postInstall?.checklist || {};
+  let checklistHtml = "";
+  const checklistEntries = Object.entries(checklist);
+  if (checklistEntries.length > 0) {
+    checklistHtml = `<table class="summary-table"><tr><th>Item</th><th>Used</th><th>Waste</th><th>Notes</th></tr>`;
+    for (const [key, val] of checklistEntries) {
+      if (val.used || val.waste) {
+        checklistHtml += `<tr><td class="label">${key}</td><td class="value">${val.used || "—"}</td><td class="value">${val.waste || "—"}</td><td>${val.notes || ""}</td></tr>`;
+      }
+    }
+    checklistHtml += `</table>`;
+  }
+
+  const completedAt = process?.completed_at
+    ? new Date(process.completed_at).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })
+    : new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
+
+  const html = renderTemplate("installation_complete", {
+    customer_name: `${quote.fname} ${quote.lname}`,
+    quote_no: quote.quote_no,
+    quote_id: quote.quote_id,
+    address: quote.address ?? "",
+    city: quote.city ?? "",
+    installer_name: process?.installer_name || "Not assigned",
+    completed_at: completedAt,
+    linear_feet: prep.linearFeet || quote.total_numerical_box || 0,
+    duration,
+    travel_time: travelTime,
+    total_expenses: totalExpenses,
+    photo_count: photoCount,
+    checklist_section: checklistHtml,
+  });
+
+  // Send to admin + salesman (NOT the customer)
+  const recipients = [
+    quote.salesman_email,
+    "canstarlightca@gmail.com",
+  ].filter(Boolean);
+
+  await sendMail({
+    to: recipients.join(", "),
+    subject: `Installation Completed — ${quote.fname} ${quote.lname} (${quote.quote_no}) - Canstar Light`,
     html,
   });
 }

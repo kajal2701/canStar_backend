@@ -83,6 +83,13 @@
  *  POST  /quote/saveFollowupDate              Save follow-up date
  *
  * ══════════════════════════════════════════════════════════════════════════════
+ * INSTALL PROCESS  —  /install
+ * ══════════════════════════════════════════════════════════════════════════════
+ *  POST  /install/save-step                    Save a single step's data
+ *  GET   /install/process/:quote_id            Get saved process state
+ *  POST  /install/complete                     Mark installation complete
+ *
+ * ══════════════════════════════════════════════════════════════════════════════
  * INVENTORY  —  /inventory
  * ══════════════════════════════════════════════════════════════════════════════
  *  GET   /inventory/tracks                    List all tracks
@@ -150,6 +157,7 @@ import customerRoutes from "./routes/customerRoutes.js";
 import productsRoutes from "./routes/productsRoutes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
 import inventoryRoutes from "./routes/inventoryRoutes.js";
+import installRoutes from "./routes/installRoutes.js";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -161,7 +169,7 @@ dotenv.config();
 const app = express();
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "50mb" }));
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // routes
@@ -174,6 +182,7 @@ app.use("/customer", customerRoutes);
 app.use("/products", productsRoutes);
 app.use("/payment", paymentRoutes);
 app.use("/inventory", inventoryRoutes);
+app.use("/install", installRoutes);
 
 // app.listen(process.env.PORT, () => {
 //   console.log(`🚀 Server running on http://localhost:${process.env.PORT}`);

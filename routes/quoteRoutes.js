@@ -40,6 +40,7 @@ import {
   schedule_installation,
   installs,
   installs2,
+  calendar_installs,
   saveQuoteSanction,
   saveFollowupDate,
 } from "../controllers/quoteController.js";
@@ -68,6 +69,7 @@ router.post("/payment_receive", payment_receive);
 router.post("/schedule_installation", schedule_installation);
 router.get("/installs", installs);
 router.get("/installs2", installs2);
+router.get("/calendar_installs", calendar_installs);
 router.post("/saveQuoteSanction", saveQuoteSanction);
 router.post("/saveFollowupDate", saveFollowupDate);
 

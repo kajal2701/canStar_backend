@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Installer On The Way</title>
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .email-container {
+            max-width: 650px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            border: 1px solid #007bff;
+        }
+
+        .header {
+            background-color: #007bff;
+            color: white;
+            text-align: center;
+            padding: 20px 0;
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        .content {
+            padding: 30px;
+            font-size: 16px;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .content p {
+            margin-bottom: 15px;
+        }
+
+        .highlight-box {
+            background-color: #f9f9f9;
+            border-left: 4px solid #007bff;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+        }
+
+        .highlight-box p {
+            margin: 0;
+        }
+
+        .eta-box {
+            background-color: #e8f5e9;
+            border: 2px solid #4caf50;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            margin: 25px 0;
+        }
+
+        .eta-label {
+            font-size: 14px;
+            color: #2e7d32;
+            text-transform: uppercase;
+            font-weight: 600;
+            letter-spacing: 1px;
+            margin-bottom: 5px;
+        }
+
+        .eta-value {
+            font-size: 36px;
+            color: #1b5e20;
+            font-weight: 700;
+        }
+
+        .footer {
+            text-align: center;
+            background-color: #f4f4f4;
+            padding: 20px;
+            font-size: 12px;
+            color: #777;
+        }
+
+        .footer p {
+            margin: 0;
+        }
+
+        .footer a {
+            color: #777;
+            text-decoration: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="email-container">
+        <div class="header">Your Installer is On The Way! 🚗</div>
+        <div class="content">
+            <p>Hi <strong>{{fname}} {{lname}}</strong>,</p>
+            <p>Great news! Your installer, <strong>{{installer_name}}</strong>, is currently on their way to your location for your scheduled Canstar Lights installation.</p>
+
+            <div class="eta-box">
+                <div class="eta-label">Estimated Time of Arrival</div>
+                <div class="eta-value">{{eta}}</div>
+            </div>
+
+            <div class="highlight-box">
+                <p><strong>Quote Reference:</strong> {{quote_no}}</p>
+                <p><strong>Address:</strong> {{address}}, {{city}}</p>
+            </div>
+
+            <p>Please ensure someone is available at the property to grant access. If you need to make any changes or have questions, please reply to this email — it will be forwarded to your sales representative.</p>
+
+            <p>If you need immediate assistance, you can reach us at <a href="mailto:info@canstarlight.ca">info@canstarlight.ca</a> or call us at <a href="tel:+17807164210">(780) 716-4210</a>.</p>
+
+            <p>Thank you for choosing <strong>Canstar Lights</strong>!</p>
+        </div>
+        <div class="footer">
+            <p>&copy; 2025 Canstar Light. All rights reserved.</p>
+            <p><a href="https://newportal.canstarlights.ca/quote/termsconditions">Privacy Policy</a></p>
+        </div>
+    </div>
+</body>
+
+</html>

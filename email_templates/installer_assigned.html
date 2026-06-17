@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Payment Confirmation</title>
+    <title>Installation Assigned</title>
     <style>
         body {
             font-family: 'Poppins', sans-serif;
@@ -13,7 +13,7 @@
         }
 
         .email-container {
-            max-width: 600px;
+            max-width: 650px;
             margin: 0 auto;
             background-color: #ffffff;
             border-radius: 8px;
@@ -29,7 +29,6 @@
             padding: 20px 0;
             font-size: 24px;
             font-weight: 600;
-            border: 1px solid #28a745;
         }
 
         .content {
@@ -43,30 +42,16 @@
             margin-bottom: 15px;
         }
 
-        .payment-summary {
+        .highlight-box {
             background-color: #f9f9f9;
             border-left: 4px solid #28a745;
             padding: 15px;
             margin-bottom: 20px;
             border-radius: 5px;
-            font-size: 16px;
         }
 
-        .payment-summary p {
-            margin: 0;
-            line-height: 1.5;
-        }
-
-        .cta-button {
-            display: inline-block;
-            background-color: #28a745;
-            color: #ffffff !important;
-            text-decoration: none;
-            padding: 12px 24px;
-            border-radius: 5px;
-            font-size: 16px;
-            font-weight: 500;
-            text-align: center;
+        .highlight-box p {
+            margin: 5px 0;
         }
 
         .footer {
@@ -90,32 +75,36 @@
 
 <body>
     <div class="email-container">
-        <div class="header">Payment Confirmation</div>
+        <div class="header">New Installation Assigned!</div>
         <div class="content">
-            <p>Hi Admin,</p>
-            <p>A payment has been sent by <strong>{{fname}} {{lname}}</strong>.</p>
-            <div class="payment-summary">
-                <p><strong>Quote Number:</strong> #{{quote_no}}</p>
-                <p><strong>Method of Payment:</strong> {{paymentMethod}}</p>
-                <p><strong>Payment Date:</strong> {{paymentDate}}</p>
-                <p><strong>Liner Feet:</strong> {{total_numerical_box}}</p>
-                <p><strong>Channel Color:</strong> {{channel_color}}</p>
-                <p><strong>Total Amount:</strong> ${{totalPaid}}</p>
-                <p><strong>Admin Notes:</strong> {{admin_notes}}</p>
-                <p><strong>Customer Notes:</strong> {{customer_notes}}</p>
-            </div>
-            <p>To acknowledge receipt of payment, please click the button below:</p>
-            <p style="text-align: center;">
-                <a href="https://newportal.canstarlights.ca/quote/view_quote_admin/{{quote_id}}"
-                    class="cta-button">Payment
-                    Received</a>
+            <p>Hi <strong>{{installer_fname}}</strong>,</p>
+            <p>You have been assigned a new installation. Please review the details below:</p>
 
+            <h3>Installation Details</h3>
+            <div class="highlight-box">
+                <p><strong>Quote #:</strong> {{quote_no}}</p>
+                <p><strong>Customer:</strong> {{customer_name}}</p>
+                <p><strong>Address:</strong> {{address}}, {{city}}, {{state}}, {{country}}</p>
+                <p><strong>Scheduled Date:</strong> {{installDate}}</p>
+            </div>
+
+            <h3>Before You Arrive</h3>
+            <ul>
+                <li>Review the installation details and ensure you have all necessary equipment.</li>
+                <li>Contact the customer if you need gate codes or special access instructions.</li>
+                <li>Check the weather forecast and plan accordingly.</li>
+            </ul>
+
+            <p>If you have any questions, please reach out to the admin team at
+                <a href="mailto:info@canstarlight.ca">info@canstarlight.ca</a> or call
+                <a href="tel:+17807164210">(780) 716-4210</a>.
             </p>
+
+            <p>Thank you!</p>
         </div>
         <div class="footer">
             <p>&copy; 2025 Canstar Light. All rights reserved.</p>
             <p><a href="https://newportal.canstarlights.ca/quote/termsconditions">Privacy Policy</a></p>
-
         </div>
     </div>
 </body>

@@ -5,6 +5,7 @@ import {
   sendFinalQuoteNotification,
   sendPaymentConfirmation,
   sendInstallationScheduled,
+  sendInstallerAssignedEmail,
   sendDeleteQuoteEmail,
   sendInvoiceFullPaymentReceipt,
   decryptParam,
@@ -21,10 +22,12 @@ export const manage_quote = async (req, res) => {
     let query = `
       SELECT quote_tbl.*,
         CONCAT(user_tbl.fname,' ',user_tbl.lname) as salesman,
+        CONCAT(installer_tbl.fname,' ',installer_tbl.lname) as installer_name,
         COALESCE(SUM(annotation_image_tbl.total_numerical_box), 0) as total_numerical_box,
         GROUP_CONCAT(DISTINCT annotation_image_tbl.color ORDER BY annotation_image_tbl.color SEPARATOR ', ') as colors
       FROM quote_tbl
       JOIN user_tbl ON user_tbl.user_id = quote_tbl.user_id
+      LEFT JOIN user_tbl AS installer_tbl ON installer_tbl.user_id = quote_tbl.installer_id
       LEFT JOIN annotation_image_tbl ON annotation_image_tbl.quote_id = quote_tbl.quote_id
     `;
     const params = [];
@@ -762,22 +765,25 @@ export const payment_receive = async (req, res) => {
 };
 
 // POST /quote/schedule_installation
-// Body: { quote_id, installation_date, customer_email, quote_no }
+// Body: { quote_id, installation_date, installer_id, customer_email, quote_no }
 export const schedule_installation = async (req, res) => {
   try {
-    const { quote_id, installation_date } = req.body;
+    const { quote_id, installation_date, installer_id } = req.body;
 
     const [result] = await pool.query(
-      "UPDATE quote_tbl SET installation_date = ? WHERE quote_id = ?",
-      [installation_date, quote_id]
+      "UPDATE quote_tbl SET installation_date = ?, installer_id = ? WHERE quote_id = ?",
+      [installation_date, installer_id || null, quote_id]
     );
 
     if (result.affectedRows > 0) {
       sendInstallationScheduled(quote_id).catch(() => { });
+      if (installer_id) {
+        sendInstallerAssignedEmail(quote_id).catch(() => { });
+      }
       return res.status(200).json({
         success: true,
         status_code: "1",
-        message: "Installation scheduled successfully and email sent to customer.",
+        message: "Installation scheduled successfully.",
       });
     } else {
       return res.status(200).json({ success: false, status_code: "0", message: "Failed to schedule installation." });
@@ -804,10 +810,14 @@ export const installs2 = async (req, res) => {
     const [upcoming] = await pool.query(`
       SELECT quote_tbl.*,
         CONCAT(user_tbl.fname,' ',user_tbl.lname) as salesman,
-        COALESCE(SUM(annotation_image_tbl.total_numerical_box), 0) as total_numerical_box
+        CONCAT(installer_tbl.fname,' ',installer_tbl.lname) as installer_name,
+        COALESCE(SUM(annotation_image_tbl.total_numerical_box), 0) as total_numerical_box,
+        install_process_tbl.status as install_status
       FROM quote_tbl
       JOIN user_tbl ON user_tbl.user_id = quote_tbl.user_id
+      LEFT JOIN user_tbl AS installer_tbl ON installer_tbl.user_id = quote_tbl.installer_id
       LEFT JOIN annotation_image_tbl ON annotation_image_tbl.quote_id = quote_tbl.quote_id
+      LEFT JOIN install_process_tbl ON install_process_tbl.quote_id = quote_tbl.quote_id
       WHERE quote_tbl.status = 3
         AND quote_tbl.installation_date IS NOT NULL
         AND quote_tbl.installation_date != ''
@@ -825,10 +835,14 @@ export const installs2 = async (req, res) => {
     const [past_pending_invoice] = await pool.query(`
       SELECT quote_tbl.*,
         CONCAT(user_tbl.fname,' ',user_tbl.lname) as salesman,
-        COALESCE(SUM(annotation_image_tbl.total_numerical_box), 0) as total_numerical_box
+        CONCAT(installer_tbl.fname,' ',installer_tbl.lname) as installer_name,
+        COALESCE(SUM(annotation_image_tbl.total_numerical_box), 0) as total_numerical_box,
+        install_process_tbl.status as install_status
       FROM quote_tbl
       JOIN user_tbl ON user_tbl.user_id = quote_tbl.user_id
+      LEFT JOIN user_tbl AS installer_tbl ON installer_tbl.user_id = quote_tbl.installer_id
       LEFT JOIN annotation_image_tbl ON annotation_image_tbl.quote_id = quote_tbl.quote_id
+      LEFT JOIN install_process_tbl ON install_process_tbl.quote_id = quote_tbl.quote_id
       WHERE quote_tbl.status = 3
         AND quote_tbl.installation_date IS NOT NULL
         AND quote_tbl.installation_date != ''
@@ -847,12 +861,14 @@ export const installs2 = async (req, res) => {
     const [non_scheduled] = await pool.query(`
       SELECT quote_tbl.*,
         CONCAT(user_tbl.fname,' ',user_tbl.lname) as salesman,
-        COALESCE(SUM(annotation_image_tbl.total_numerical_box), 0) as total_numerical_box
+        COALESCE(SUM(annotation_image_tbl.total_numerical_box), 0) as total_numerical_box,
+        install_process_tbl.status as install_status
       FROM quote_tbl
       JOIN user_tbl ON user_tbl.user_id = quote_tbl.user_id
       LEFT JOIN annotation_image_tbl ON annotation_image_tbl.quote_id = quote_tbl.quote_id
       LEFT JOIN quote_payment ON quote_payment.quote_id = quote_tbl.quote_id
       LEFT JOIN online_payment_details ON online_payment_details.payment_id = quote_payment.payment_id
+      LEFT JOIN install_process_tbl ON install_process_tbl.quote_id = quote_tbl.quote_id
       WHERE quote_tbl.status = 3
         AND online_payment_details.status = 1
         AND (quote_tbl.installation_date IS NULL OR quote_tbl.installation_date = '')
@@ -871,6 +887,66 @@ export const installs2 = async (req, res) => {
         upcoming_installations: upcoming,
         past_installations_pending_invoice: past_pending_invoice,
         non_scheduled_jobs: non_scheduled,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// GET /quote/calendar_installs
+export const calendar_installs = async (req, res) => {
+  try {
+    const { user_id, role } = req.query;
+
+    const paymentDetailsQuery = `
+      SELECT quote_payment.*,
+        online_payment_details.etransfer_image,
+        online_payment_details.payment_method,
+        online_payment_details.status as payment_status
+      FROM quote_payment
+      LEFT JOIN online_payment_details ON online_payment_details.payment_id = quote_payment.payment_id
+      WHERE quote_payment.quote_id = ?
+    `;
+
+    let filterQuery = "";
+    let queryParams = [today()];
+
+    // If not admin, filter by installer_id
+    if (role && Number(role) !== 1 && user_id) {
+      filterQuery = " AND quote_tbl.installer_id = ? ";
+      queryParams.push(user_id);
+    }
+
+    const [upcoming] = await pool.query(`
+      SELECT quote_tbl.*,
+        CONCAT(user_tbl.fname,' ',user_tbl.lname) as salesman,
+        CONCAT(installer_tbl.fname,' ',installer_tbl.lname) as installer_name,
+        COALESCE(SUM(annotation_image_tbl.total_numerical_box), 0) as total_numerical_box,
+        install_process_tbl.status as install_status
+      FROM quote_tbl
+      JOIN user_tbl ON user_tbl.user_id = quote_tbl.user_id
+      LEFT JOIN user_tbl AS installer_tbl ON installer_tbl.user_id = quote_tbl.installer_id
+      LEFT JOIN annotation_image_tbl ON annotation_image_tbl.quote_id = quote_tbl.quote_id
+      LEFT JOIN install_process_tbl ON install_process_tbl.quote_id = quote_tbl.quote_id
+      WHERE quote_tbl.status = 3
+        AND quote_tbl.installation_date IS NOT NULL
+        AND quote_tbl.installation_date != ''
+        AND quote_tbl.installation_date >= ?
+        ${filterQuery}
+      GROUP BY quote_tbl.quote_id
+      ORDER BY quote_tbl.installation_date ASC
+    `, queryParams);
+
+    for (const quote of upcoming) {
+      const [payments] = await pool.query(paymentDetailsQuery, [quote.quote_id]);
+      quote.payment_details = payments;
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        upcoming_installations: upcoming,
       },
     });
   } catch (error) {
@@ -957,9 +1033,11 @@ export const installs = async (req, res) => {
     const [upcoming] = await pool.query(`
       SELECT quote_tbl.*,
         CONCAT(user_tbl.fname,' ',user_tbl.lname) as salesman,
+        CONCAT(installer_tbl.fname,' ',installer_tbl.lname) as installer_name,
         COALESCE(SUM(annotation_image_tbl.total_numerical_box), 0) as total_numerical_box
       FROM quote_tbl
       JOIN user_tbl ON user_tbl.user_id = quote_tbl.user_id
+      LEFT JOIN user_tbl AS installer_tbl ON installer_tbl.user_id = quote_tbl.installer_id
       LEFT JOIN annotation_image_tbl ON annotation_image_tbl.quote_id = quote_tbl.quote_id
       WHERE quote_tbl.status = 3
         AND quote_tbl.installation_date IS NOT NULL
