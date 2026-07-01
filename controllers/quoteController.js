@@ -9,6 +9,7 @@ import {
   sendDeleteQuoteEmail,
   sendInvoiceFullPaymentReceipt,
   decryptParam,
+  sendFollowupScheduledEmail,
 } from "../utils/emailHelper.js";
 
 const now = () => new Date().toISOString().slice(0, 19).replace("T", " ");
@@ -770,20 +771,33 @@ export const schedule_installation = async (req, res) => {
   try {
     const { quote_id, installation_date, installer_id } = req.body;
 
+    // ── Detect new schedule vs reschedule ────────────────────────────────────
+    // Fetch the current installation_date BEFORE updating
+    const [[existing]] = await pool.query(
+      "SELECT installation_date FROM quote_tbl WHERE quote_id = ?",
+      [quote_id]
+    );
+    const isRescheduled = !!(existing?.installation_date);
+    // ────────────────────────────────────────────────────────────────────────
+
     const [result] = await pool.query(
       "UPDATE quote_tbl SET installation_date = ?, installer_id = ? WHERE quote_id = ?",
       [installation_date, installer_id || null, quote_id]
     );
 
     if (result.affectedRows > 0) {
-      sendInstallationScheduled(quote_id).catch(() => { });
+      // Send appropriate email to customer based on new schedule or reschedule
+      sendInstallationScheduled(quote_id, isRescheduled).catch(() => { });
       if (installer_id) {
-        sendInstallerAssignedEmail(quote_id).catch(() => { });
+        // Send appropriate email to installer based on new assignment or reassignment
+        sendInstallerAssignedEmail(quote_id, isRescheduled).catch(() => { });
       }
       return res.status(200).json({
         success: true,
         status_code: "1",
-        message: "Installation scheduled successfully.",
+        message: isRescheduled
+          ? "Installation rescheduled successfully."
+          : "Installation scheduled successfully.",
       });
     } else {
       return res.status(200).json({ success: false, status_code: "0", message: "Failed to schedule installation." });
@@ -792,6 +806,7 @@ export const schedule_installation = async (req, res) => {
     return res.status(500).json({ success: false, message: error.message });
   }
 };
+
 
 // GET /quote/installs2
 export const installs2 = async (req, res) => {
@@ -1018,6 +1033,7 @@ export const saveFollowupDate = async (req, res) => {
     );
 
     if (result.affectedRows > 0) {
+      sendFollowupScheduledEmail(quote_id, followup_date).catch(() => { });
       return res.status(200).json({ success: true, status_code: "1", message: "Follow-up date saved successfully." });
     } else {
       return res.status(404).json({ success: false, message: "Quote not found." });

@@ -186,8 +186,8 @@ export async function sendPaymentConfirmation(quote_id) {
   });
 }
 
-// schedule_installation: installation scheduled → to customer
-export async function sendInstallationScheduled(quote_id) {
+// schedule_installation: installation scheduled/rescheduled → to customer
+export async function sendInstallationScheduled(quote_id, isRescheduled = false) {
   const [[quote]] = await pool.query(
     "SELECT * FROM quote_tbl WHERE quote_id = ?",
     [quote_id]
@@ -198,6 +198,16 @@ export async function sendInstallationScheduled(quote_id) {
     ? formatDateUTC(quote.installation_date)
     : "[Date TBD]";
 
+  // Dynamic content based on new schedule vs reschedule
+  const heading = isRescheduled
+    ? "📅 Canstar Light Installation Rescheduled"
+    : "Canstar Light Installation Scheduled!";
+  const intro_text = isRescheduled
+    ? "We wanted to let you know that your Canstar Lights installation has been <strong>rescheduled</strong>. Please review the updated details below."
+    : "<strong>Important:</strong> Please review this email carefully, as it contains key information about your installation.";
+  const note_text = isRescheduled
+    ? "<strong>&#9888; Updated Date:</strong> Your installation has been moved to a new date &mdash; please make note of the updated schedule below."
+    : "<strong>Site Preparation:</strong> Ensure all areas are cleared to allow ladder access.";
   const html = renderTemplate("installation_scheduled", {
     fname: quote.fname,
     lname: quote.lname,
@@ -206,17 +216,24 @@ export async function sendInstallationScheduled(quote_id) {
     state: quote.state ?? "",
     country: quote.country ?? "",
     installDate,
+    heading,
+    intro_text,
+    note_text,
   });
+
+  const subject = isRescheduled
+    ? `Your Canstar Light Installation Has Been Rescheduled`
+    : `Your Canstar Light Installation is Scheduled`;
 
   await sendMail({
     to: quote.email,
-    subject: `Your Canstar Light Installation is Scheduled`,
+    subject,
     html,
   });
 }
 
-// schedule_installation: installer assigned notification → to installer
-export async function sendInstallerAssignedEmail(quote_id) {
+// schedule_installation: installer assigned/reassigned notification → to installer
+export async function sendInstallerAssignedEmail(quote_id, isRescheduled = false) {
   const [[quote]] = await pool.query(
     `SELECT quote_tbl.*,
        CONCAT(installer.fname,' ',installer.lname) as installer_name,
@@ -233,6 +250,13 @@ export async function sendInstallerAssignedEmail(quote_id) {
     ? formatDateUTC(quote.installation_date)
     : "[Date TBD]";
 
+  // Dynamic content based on new assignment vs reassignment
+  const heading = isRescheduled
+    ? "📅 Installation Rescheduled — Update"
+    : "New Installation Assigned!";
+  const intro_text = isRescheduled
+    ? "The installation you are assigned to has been <strong>rescheduled</strong>. Please take note of the updated date below."
+    : "You have been assigned a new installation. Please review the details below:";
   const html = renderTemplate("installer_assigned", {
     installer_fname: quote.installer_fname ?? "Installer",
     quote_no: quote.quote_no,
@@ -242,11 +266,17 @@ export async function sendInstallerAssignedEmail(quote_id) {
     state: quote.state ?? "",
     country: quote.country ?? "",
     installDate,
+    heading,
+    intro_text,
   });
+
+  const subject = isRescheduled
+    ? `Installation Rescheduled — ${quote.quote_no}`
+    : `New Installation Assigned - ${quote.quote_no}`;
 
   await sendMail({
     to: quote.installer_email,
-    subject: `New Installation Assigned - ${quote.quote_no}`,
+    subject,
     html,
   });
 }
@@ -599,6 +629,40 @@ export async function sendInstallationCompleteEmail(quote_id) {
   await sendMail({
     to: recipients.join(", "),
     subject: `Installation Completed — ${quote.fname} ${quote.lname} (${quote.quote_no}) - Canstar Light`,
+    html,
+  });
+}
+
+// followup_scheduled: notify admin + salesman when a follow up date is set
+export async function sendFollowupScheduledEmail(quote_id, followup_date) {
+  const [[quote]] = await pool.query(
+    `SELECT quote_tbl.*,
+       CONCAT(salesman.fname,' ',salesman.lname) as salesman_name,
+       salesman.email as salesman_email
+     FROM quote_tbl
+     JOIN user_tbl AS salesman ON salesman.user_id = quote_tbl.user_id
+     WHERE quote_tbl.quote_id = ?`,
+    [quote_id]
+  );
+  if (!quote) return;
+
+  const html = renderTemplate("followup_scheduled", {
+    fname: quote.fname,
+    lname: quote.lname,
+    quote_no: quote.quote_no,
+    quote_id: quote.quote_id,
+    followup_date: followup_date,
+    salesman: quote.salesman_name,
+  });
+
+  const recipients = [
+    quote.salesman_email,
+    "canstarlightca@gmail.com",
+  ].filter(Boolean);
+
+  await sendMail({
+    to: recipients.join(", "),
+    subject: `Follow-Up Scheduled — ${quote.fname} ${quote.lname} (${quote.quote_no}) - Canstar Light`,
     html,
   });
 }

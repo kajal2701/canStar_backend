@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>{{heading}}</title>
+    <title>Follow-Up Scheduled</title>
     <style>
         body {
             font-family: 'Poppins', sans-serif;
@@ -13,22 +13,23 @@
         }
 
         .email-container {
-            max-width: 650px;
+            max-width: 600px;
             margin: 0 auto;
             background-color: #ffffff;
             border-radius: 8px;
             overflow: hidden;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-            border: 1px solid #28a745;
+            border: 1px solid #007bff;
         }
 
         .header {
-            background-color: #28a745;
+            background-color: #007bff;
             color: white;
             text-align: center;
             padding: 20px 0;
             font-size: 24px;
             font-weight: 600;
+            border: 1px solid #007bff;
         }
 
         .content {
@@ -42,16 +43,30 @@
             margin-bottom: 15px;
         }
 
-        .highlight-box {
+        .summary-box {
             background-color: #f9f9f9;
-            border-left: 4px solid #28a745;
+            border-left: 4px solid #007bff;
             padding: 15px;
             margin-bottom: 20px;
             border-radius: 5px;
+            font-size: 16px;
         }
 
-        .highlight-box p {
-            margin: 5px 0;
+        .summary-box p {
+            margin: 0;
+            line-height: 1.5;
+        }
+
+        .cta-button {
+            display: inline-block;
+            background-color: #007bff;
+            color: #ffffff !important;
+            text-decoration: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            font-size: 16px;
+            font-weight: 500;
+            text-align: center;
         }
 
         .footer {
@@ -75,32 +90,20 @@
 
 <body>
     <div class="email-container">
-        <div class="header">{{heading}}</div>
+        <div class="header">Follow-Up Scheduled</div>
         <div class="content">
-            <p>Hi <strong>{{installer_fname}}</strong>,</p>
-            <p>{{intro_text}}</p>
-
-            <h3>Installation Details</h3>
-            <div class="highlight-box">
-                <p><strong>Quote #:</strong> {{quote_no}}</p>
-                <p><strong>Customer:</strong> {{customer_name}}</p>
-                <p><strong>Address:</strong> {{address}}, {{city}}, {{state}}, {{country}}</p>
-                <p><strong>Scheduled Date:</strong> {{installDate}}</p>
+            <p>Hi Admin & Salesperson,</p>
+            <p>A new follow-up date has been scheduled for <strong>{{fname}} {{lname}}</strong>.</p>
+            <div class="summary-box">
+                <p><strong>Quote Number:</strong> #{{quote_no}}</p>
+                <p><strong>Scheduled Follow-Up Date:</strong> {{followup_date}}</p>
+                <p><strong>Salesperson:</strong> {{salesman}}</p>
             </div>
-
-            <h3>Before You Arrive</h3>
-            <ul>
-                <li>Review the installation details and ensure you have all necessary equipment.</li>
-                <li>Contact the customer if you need gate codes or special access instructions.</li>
-                <li>Check the weather forecast and plan accordingly.</li>
-            </ul>
-
-            <p>If you have any questions, please reach out to the admin team at
-                <a href="mailto:info@canstarlight.ca">info@canstarlight.ca</a> or call
-                <a href="tel:+17807164210">(780) 716-4210</a>.
+            <p>Please remember to reach out to the customer on or before the scheduled date.</p>
+            <p style="text-align: center;">
+                <a href="https://newportal.canstarlights.ca/quote/view_quote_admin/{{quote_id}}"
+                    class="cta-button">View Quote Details</a>
             </p>
-
-            <p>Thank you!</p>
         </div>
         <div class="footer">
             <p>&copy; 2025 Canstar Light. All rights reserved.</p>

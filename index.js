@@ -158,6 +158,7 @@ import productsRoutes from "./routes/productsRoutes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
 import inventoryRoutes from "./routes/inventoryRoutes.js";
 import installRoutes from "./routes/installRoutes.js";
+import reportRoutes from "./routes/reportRoutes.js";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -183,6 +184,7 @@ app.use("/products", productsRoutes);
 app.use("/payment", paymentRoutes);
 app.use("/inventory", inventoryRoutes);
 app.use("/install", installRoutes);
+app.use("/report", reportRoutes);
 
 // app.listen(process.env.PORT, () => {
 //   console.log(`🚀 Server running on http://localhost:${process.env.PORT}`);

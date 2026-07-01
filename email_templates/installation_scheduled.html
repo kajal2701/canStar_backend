@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Installation Scheduled</title>
+    <title>{{heading}}</title>
     <style>
         body {
             font-family: 'Poppins', sans-serif;
@@ -75,13 +75,12 @@
 
 <body>
     <div class="email-container">
-        <div class="header">Canstar Light Installation Scheduled!</div>
+        <div class="header">{{heading}}</div>
         <div class="content">
             <p>Hi <strong>{{fname}} {{lname}}</strong>,</p>
-            <p><strong>Important:</strong> Please review this email carefully, as it contains key information about your
-                installation.</p>
+            <p>{{intro_text}}</p>
             <div class="highlight-box">
-                <p><strong>Site Preparation:</strong> Ensure all areas are cleared to allow ladder access.</p>
+                <p>{{note_text}}</p>
             </div>
             <div class="highlight-box">
                 <p><strong>Weather Notice:</strong> For the safety of our installation team, installations may be
