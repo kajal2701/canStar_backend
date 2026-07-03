@@ -1,34 +1,42 @@
-import axios from "axios";
+import nodemailer from "nodemailer";
 
+// ─── SMTP Transporter (smtp.gmail.com:587 / STARTTLS) ─────────────────────────
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST || "smtp.gmail.com",
+  port: parseInt(process.env.SMTP_PORT || "587"),
+  secure: false,          // false = STARTTLS on port 587
+  requireTLS: true,       // enforce STARTTLS upgrade
+  auth: {
+    user: process.env.SMTP_USER || "quote@canstarlight.ca",
+    pass: process.env.SMTP_PASS || "lpyyzoryawtewpph",
+  },
+  tls: {
+    rejectUnauthorized: false, // allows self-signed certs if needed
+  },
+});
+
+// ─── sendMail — same signature as before ──────────────────────────────────────
 export const sendMail = async ({ to, cc, subject, html, from, replyTo }) => {
-  const payload = {
-    from: from || '"CanStar Lights" <notifications@canstarlights.ca>',
+  const mailOptions = {
+    from: from || `"CanStar Lights" <quote@canstarlight.ca>`,
     to,
     subject,
     html,
   };
-  if (cc) payload.cc = cc;
-  if (replyTo) payload.replyTo = replyTo;
+  if (cc) mailOptions.cc = cc;
+  if (replyTo) mailOptions.replyTo = replyTo;
 
-  const response = await axios.post(
-    "https://mailserver.automationlounge.com/api/v1/messages/send",
-    payload,
-    {
-      headers: {
-        "Authorization": `Bearer ${process.env.PROMAILER_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-    }
-  );
-
-  console.log(`[MAIL] Sent to=${to} subject="${subject}" messageId=${response.data?.data?.messageId}`);
-  return response.data;
+  const info = await transporter.sendMail(mailOptions);
+  console.log(`[MAIL] Sent to=${to} subject="${subject}" messageId=${info.messageId}`);
+  return info;
 };
 
+// ─── verifyMailer — tests SMTP connection on startup ─────────────────────────
 export const verifyMailer = async () => {
-  if (!process.env.PROMAILER_API_KEY) {
-    throw new Error("PROMAILER_API_KEY is not set");
+  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+    throw new Error("SMTP_USER or SMTP_PASS is not set in .env");
   }
-  console.log("[MAIL] Promailer API ready ✅");
+  await transporter.verify();
+  console.log("[MAIL] SMTP connection verified ✅");
   return true;
 };
