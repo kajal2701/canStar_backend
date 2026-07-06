@@ -43,11 +43,13 @@ import {
   calendar_installs,
   saveQuoteSanction,
   saveFollowupDate,
+  manage_quote_export,
 } from "../controllers/quoteController.js";
 
 const router = express.Router();
 
 router.get("/manage_quote", manage_quote);
+router.get("/manage_quote_export", manage_quote_export);
 router.get("/get_product_data", getProductdata);
 router.get("/get_colors", getColor);
 router.get("/get_provinces", getProvince);

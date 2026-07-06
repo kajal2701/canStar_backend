@@ -15,60 +15,185 @@ import {
 const now = () => new Date().toISOString().slice(0, 19).replace("T", " ");
 const today = () => new Date().toISOString().slice(0, 10);
 
-// GET /quote/manage_quote?user_id=X&role=Y
+// --- helper function added outside exports ---
+const computeQuoteStatus = (row) => {
+  const paymentDetails = row.payment_details || [];
+  const hasPayment = paymentDetails.length > 0;
+  let paymentStatus = null;
+  let payStatus = null;
+  if (hasPayment && paymentDetails[0]?.status !== undefined) {
+    paymentStatus = paymentDetails[0].status;
+    payStatus = paymentDetails[0].payment_status;
+  }
+  let paymentStatusValue = null;
+  if (hasPayment) {
+    let allConfirmed = true;
+    let allPending = true;
+    paymentDetails.forEach((payment) => {
+      if (payment.payment_status == 1) {
+        allPending = false;
+      } else if (payment.payment_status == 0) {
+        allConfirmed = false;
+      } else {
+        allConfirmed = false;
+        allPending = false;
+      }
+    });
+    if (allConfirmed) paymentStatusValue = 1;
+    else if (allPending) paymentStatusValue = 0;
+    else paymentStatusValue = 0;
+  }
+  const hasInvoiceDate = !!row.invoice_date;
+
+  if (row.status == 1) return "Created";
+  if (paymentStatusValue == 1 && paymentStatus == 1) return "Fully Paid";
+  if (paymentStatusValue != 1 && paymentStatus == 0 && hasInvoiceDate) return "Invoice Sent - Awaiting Confirmation";
+  if (hasInvoiceDate) return "Invoice Sent";
+  if (paymentStatus == 0 && paymentStatusValue == 1 && payStatus != null) return "Confirmed - Deposit Paid";
+  if (paymentStatus == 0 && hasPayment && paymentStatusValue != 1) return "Confirmed - Awaiting Payment";
+  if (paymentStatus === null && row.status == 3) return "Sent";
+  if (row.status == 3) return "Sent";
+  if (row.status == 2) return "Pending Approval";
+  if (row.status == 4) return "Cancelled";
+  return "Unknown Status";
+};
+
+// Internal function to get filtered list
+const getFilteredQuotesList = async (req) => {
+  const { user_id, role, search, salesman, date, installation_date } = req.query;
+
+  // Select only necessary slim columns (no heavy blobs)
+  let query = `
+    SELECT
+      quote_tbl.quote_id, quote_tbl.quote_no, quote_tbl.user_id, quote_tbl.fname, quote_tbl.lname, quote_tbl.email, quote_tbl.phone,
+      quote_tbl.address, quote_tbl.city, quote_tbl.state, quote_tbl.country, quote_tbl.post_code,
+      quote_tbl.main_total, quote_tbl.status, quote_tbl.created_at,
+      quote_tbl.installation_date, quote_tbl.installer_id, quote_tbl.invoice_date,
+      quote_tbl.sanction_reason, quote_tbl.sanction_notes, quote_tbl.followup_date,
+      CONCAT(user_tbl.fname,' ',user_tbl.lname) as salesman,
+      CONCAT(installer_tbl.fname,' ',installer_tbl.lname) as installer_name,
+      COALESCE(SUM(annotation_image_tbl.total_numerical_box), 0) as total_numerical_box,
+      GROUP_CONCAT(DISTINCT annotation_image_tbl.color ORDER BY annotation_image_tbl.color SEPARATOR ', ') as colors
+    FROM quote_tbl
+    JOIN user_tbl ON user_tbl.user_id = quote_tbl.user_id
+    LEFT JOIN user_tbl AS installer_tbl ON installer_tbl.user_id = quote_tbl.installer_id
+    LEFT JOIN annotation_image_tbl ON annotation_image_tbl.quote_id = quote_tbl.quote_id
+  `;
+  const params = [];
+  let conditions = ["quote_tbl.status != 5"];
+
+  if (role && role != 1) {
+    conditions.push("user_tbl.user_id = ?");
+    params.push(user_id);
+  }
+
+  if (search) {
+    conditions.push(`(
+      quote_tbl.quote_no LIKE ? OR
+      quote_tbl.fname LIKE ? OR
+      quote_tbl.lname LIKE ? OR
+      quote_tbl.email LIKE ? OR
+      quote_tbl.phone LIKE ? OR
+      quote_tbl.address LIKE ? OR
+      quote_tbl.city LIKE ? OR
+      quote_tbl.state LIKE ? OR
+      quote_tbl.country LIKE ? OR
+      quote_tbl.post_code LIKE ?
+    )`);
+    const searchVal = `%${search}%`;
+    for (let i = 0; i < 10; i++) params.push(searchVal);
+  }
+
+  if (date) {
+    // Check both created_at and installation_date as per previous frontend logic
+    conditions.push(`(DATE(quote_tbl.created_at) = ? OR DATE(quote_tbl.installation_date) = ?)`);
+    params.push(date, date);
+  }
+
+  if (installation_date) {
+    conditions.push(`DATE(quote_tbl.installation_date) = ?`);
+    params.push(installation_date);
+  }
+
+  if (salesman && salesman !== 'all') {
+    conditions.push(`CONCAT(user_tbl.fname, ' ', user_tbl.lname) = ?`);
+    params.push(salesman);
+  }
+
+  query += " WHERE " + conditions.join(" AND ");
+  query += " GROUP BY quote_tbl.quote_id ORDER BY quote_tbl.quote_id DESC";
+
+  const [quotes] = await pool.query(query, params);
+
+  if (quotes.length === 0) {
+    return [];
+  }
+
+  // Fetch payments for attached filtering
+  const quoteIds = quotes.map((q) => q.quote_id);
+  const [allPayments] = await pool.query(
+    `SELECT quote_payment.*, online_payment_details.etransfer_image,
+      online_payment_details.payment_method,
+      online_payment_details.status as payment_status
+     FROM quote_payment
+     LEFT JOIN online_payment_details ON online_payment_details.payment_id = quote_payment.payment_id
+     WHERE quote_payment.quote_id IN (?)`,
+    [quoteIds]
+  );
+
+  const paymentsByQuoteId = {};
+  for (const payment of allPayments) {
+    if (!paymentsByQuoteId[payment.quote_id]) paymentsByQuoteId[payment.quote_id] = [];
+    paymentsByQuoteId[payment.quote_id].push(payment);
+  }
+
+  for (const quote of quotes) {
+    quote.payment_details = paymentsByQuoteId[quote.quote_id] || [];
+  }
+
+  return quotes;
+};
+
+// GET /quote/manage_quote
 export const manage_quote = async (req, res) => {
   try {
-    const { user_id, role } = req.query;
+    const { status, page = 1, limit = 10 } = req.query;
 
-    let query = `
-      SELECT quote_tbl.*,
-        CONCAT(user_tbl.fname,' ',user_tbl.lname) as salesman,
-        CONCAT(installer_tbl.fname,' ',installer_tbl.lname) as installer_name,
-        COALESCE(SUM(annotation_image_tbl.total_numerical_box), 0) as total_numerical_box,
-        GROUP_CONCAT(DISTINCT annotation_image_tbl.color ORDER BY annotation_image_tbl.color SEPARATOR ', ') as colors
-      FROM quote_tbl
-      JOIN user_tbl ON user_tbl.user_id = quote_tbl.user_id
-      LEFT JOIN user_tbl AS installer_tbl ON installer_tbl.user_id = quote_tbl.installer_id
-      LEFT JOIN annotation_image_tbl ON annotation_image_tbl.quote_id = quote_tbl.quote_id
-    `;
-    const params = [];
+    let quotes = await getFilteredQuotesList(req);
 
-    let conditions = ["quote_tbl.status != 5"];
-    if (role && role != 1) {
-      conditions.push("user_tbl.user_id = ?");
-      params.push(user_id);
-    }
-    query += " WHERE " + conditions.join(" AND ");
-    query += " GROUP BY quote_tbl.quote_id ORDER BY quote_tbl.quote_id DESC";
-
-    const [quotes] = await pool.query(query, params);
-
-    if (quotes.length === 0) {
-      return res.status(200).json({ success: true, data: [] });
+    // Apply status filter in memory
+    if (status) {
+      quotes = quotes.filter(q => computeQuoteStatus(q) === status);
     }
 
-    // Single query for all payment details — eliminates N+1
-    const quoteIds = quotes.map((q) => q.quote_id);
-    const [allPayments] = await pool.query(
-      `SELECT quote_payment.*, online_payment_details.etransfer_image,
-        online_payment_details.payment_method,
-        online_payment_details.status as payment_status
-       FROM quote_payment
-       LEFT JOIN online_payment_details ON online_payment_details.payment_id = quote_payment.payment_id
-       WHERE quote_payment.quote_id IN (?)`,
-      [quoteIds]
-    );
+    const total = quotes.length;
+    const parsedPage = parseInt(page);
+    const parsedLimit = parseInt(limit);
+    const totalPages = Math.ceil(total / parsedLimit);
+    const offset = (parsedPage - 1) * parsedLimit;
 
-    // Group payments by quote_id and attach
-    const paymentsByQuoteId = {};
-    for (const payment of allPayments) {
-      if (!paymentsByQuoteId[payment.quote_id]) {
-        paymentsByQuoteId[payment.quote_id] = [];
-      }
-      paymentsByQuoteId[payment.quote_id].push(payment);
-    }
-    for (const quote of quotes) {
-      quote.payment_details = paymentsByQuoteId[quote.quote_id] || [];
+    const paginatedQuotes = quotes.slice(offset, offset + parsedLimit);
+
+    return res.status(200).json({
+      success: true,
+      data: paginatedQuotes,
+      pagination: { total, page: parsedPage, limit: parsedLimit, totalPages }
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// GET /quote/manage_quote_export
+export const manage_quote_export = async (req, res) => {
+  try {
+    const { status } = req.query;
+
+    let quotes = await getFilteredQuotesList(req);
+
+    // Apply status filter in memory
+    if (status) {
+      quotes = quotes.filter(q => computeQuoteStatus(q) === status);
     }
 
     return res.status(200).json({ success: true, data: quotes });
@@ -113,7 +238,7 @@ export const getProvince = async (req, res) => {
 export const add_quote_process = async (req, res) => {
   try {
     const {
-      user_id, fname, lname, email, phone,
+      user_id, customer_id, fname, lname, email, phone,
       street, city, state, country, post_code,
       product_data, custom_product_data,
       total_controller_price, total_feet_price,
@@ -130,6 +255,7 @@ export const add_quote_process = async (req, res) => {
 
     const data = {
       user_id,
+      customer_id: customer_id || null,
       fname,
       lname,
       email,

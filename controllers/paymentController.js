@@ -25,6 +25,13 @@ const quotedata_changes = async (data) => {
     ]
   );
 
+  if (data.amount && data.payment_id) {
+    await pool.query(
+      "UPDATE quote_payment SET part_payment_amount = ? WHERE payment_id = ?",
+      [parseFloat(data.amount).toFixed(2), data.payment_id]
+    );
+  }
+
   if (data.annotation_image_ids) {
     const ids = String(data.annotation_image_ids)
       .split(",")

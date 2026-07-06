@@ -60,14 +60,59 @@ function addDays(dateStr, days) {
   return d.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 }
 
+// ─── Customer email resolver ─────────────────────────────────────────────────
+
+/**
+ * Resolves the list of email addresses to send to for a given quote.
+ *
+ * Logic:
+ *  - If quote.customer_id exists → fetch customer_tbl.email_json
+ *      - email_json has valid entries → send to those ONLY (may already include primary)
+ *      - email_json is empty / missing → fall back to quote.email
+ *  - If quote.customer_id is null (legacy quote) → use quote.email
+ *
+ * Duplicates within email_json are silently removed.
+ */
+async function getCustomerEmails(quote) {
+  if (quote.customer_id) {
+    const [[customer]] = await pool.query(
+      "SELECT email_json FROM customer_tbl WHERE cust_id = ? AND active_state = 1",
+      [quote.customer_id]
+    );
+
+    if (customer && customer.email_json) {
+      let extras = [];
+      try {
+        extras = typeof customer.email_json === "string"
+          ? JSON.parse(customer.email_json)
+          : customer.email_json;
+      } catch { extras = []; }
+
+      if (Array.isArray(extras)) {
+        const valid = [...new Set(
+          extras
+            .map(e => (e || "").trim().toLowerCase())
+            .filter(e => e && e.includes("@"))
+        )];
+        if (valid.length > 0) return valid;
+      }
+    }
+  }
+
+  // Fallback: legacy quote or empty email_json → use quote's own email
+  return quote.email ? [quote.email] : [];
+}
+
 // ─── Quote emails ─────────────────────────────────────────────────────────────
 
 // send_for_approval (status=2): "Your Quote Has Arrived" → to customer
 export async function sendNewQuoteNotification(quote_id) {
   const [[quote]] = await pool.query(
-    `SELECT quote_tbl.*, COALESCE(qp.part_payment_amount, '0.00') as deposit_amount
+    `SELECT quote_tbl.*, COALESCE(qp.part_payment_amount, '0.00') as deposit_amount,
+       CONCAT(user_tbl.fname, ' ', user_tbl.lname) AS quote_person
      FROM quote_tbl
      LEFT JOIN quote_payment qp ON qp.quote_id = quote_tbl.quote_id
+     LEFT JOIN user_tbl ON user_tbl.user_id = quote_tbl.user_id
      WHERE quote_tbl.quote_id = ?`,
     [quote_id]
   );
@@ -81,10 +126,14 @@ export async function sendNewQuoteNotification(quote_id) {
     expiryDate: addDays(quote.created_at, 4),
     main_total: quote.main_total,
     encryptedQuoteNo: encryptParam(quote.quote_no),
+    quote_person: quote.quote_person || "Canstar Light",
   });
 
+  const emails = await getCustomerEmails(quote);
+  if (!emails.length) return;
   await sendMail({
-    to: quote.email,
+    to: emails.join(", "),
+    cc: "canstarlightca@gmail.com",
     subject: `Your Quote Has Arrived - Canstar Light [${formatDate(quote.created_at)}]`,
     html,
   });
@@ -93,9 +142,11 @@ export async function sendNewQuoteNotification(quote_id) {
 // send_for_approve (status=3) / resend_quote / update_quote: "Quote from Canstar Light!" → to customer, CC admin
 export async function sendCustomerQuoteEmail(quote_id, is_updated = false) {
   const [[quote]] = await pool.query(
-    `SELECT quote_tbl.*, COALESCE(qp.part_payment_amount, '0.00') as deposit_amount
+    `SELECT quote_tbl.*, COALESCE(qp.part_payment_amount, '0.00') as deposit_amount,
+       CONCAT(user_tbl.fname, ' ', user_tbl.lname) AS quote_person
      FROM quote_tbl
      LEFT JOIN quote_payment qp ON qp.quote_id = quote_tbl.quote_id
+     LEFT JOIN user_tbl ON user_tbl.user_id = quote_tbl.user_id
      WHERE quote_tbl.quote_id = ?`,
     [quote_id]
   );
@@ -110,14 +161,17 @@ export async function sendCustomerQuoteEmail(quote_id, is_updated = false) {
     deposit_amount: quote.deposit_amount,
     main_total: quote.main_total,
     encryptedQuoteNo: encryptParam(quote.quote_no),
+    quote_person: quote.quote_person || "Canstar Light",
   });
 
   const subject = is_updated
     ? `Updated Quote from Canstar Light [${formatDate(quote.created_at)}]`
     : `Canstar Light Quote [${formatDate(quote.created_at)}]`;
-  console.log(`Sending quote email to ${quote.email} with subject "${subject}"`);
+  const emails = await getCustomerEmails(quote);
+  if (!emails.length) return;
+  console.log(`Sending quote email to ${emails.join(", ")} with subject "${subject}"`);
   await sendMail({
-    to: quote.email,
+    to: emails.join(", "),
     cc: "canstarlightca@gmail.com",
     subject,
     html,
@@ -128,9 +182,11 @@ export async function sendCustomerQuoteEmail(quote_id, is_updated = false) {
 export async function sendFinalQuoteNotification(quote_id) {
   const [[quote]] = await pool.query(
     `SELECT quote_tbl.*,
-       qp.payment_id, qp.pending_payment_amount
+       qp.payment_id, qp.pending_payment_amount,
+       CONCAT(user_tbl.fname, ' ', user_tbl.lname) AS quote_person
      FROM quote_tbl
      LEFT JOIN quote_payment qp ON qp.quote_id = quote_tbl.quote_id
+     LEFT JOIN user_tbl ON user_tbl.user_id = quote_tbl.user_id
      WHERE quote_tbl.quote_id = ?`,
     [quote_id]
   );
@@ -143,10 +199,14 @@ export async function sendFinalQuoteNotification(quote_id) {
     formattedDate: new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }),
     balanceAmount: parseFloat(quote.pending_payment_amount ?? quote.main_total).toFixed(2),
     encryptedQuoteNo: encryptParam(quote.quote_no),
+    quote_person: quote.quote_person || "Canstar Light",
   });
 
+  const emails = await getCustomerEmails(quote);
+  if (!emails.length) return;
   await sendMail({
-    to: quote.email,
+    to: emails.join(", "),
+    cc: "canstarlightca@gmail.com",
     subject: `Final Invoice - Canstar Light`,
     html,
   });
@@ -156,10 +216,12 @@ export async function sendFinalQuoteNotification(quote_id) {
 export async function sendPaymentConfirmation(quote_id) {
   const [[quote]] = await pool.query(
     `SELECT quote_tbl.*,
-       opd.payment_method, opd.created_at as payment_created_at, opd.amount as paid_amount
+       opd.payment_method, opd.created_at as payment_created_at, opd.amount as paid_amount,
+       CONCAT(user_tbl.fname, ' ', user_tbl.lname) AS quote_person
      FROM quote_tbl
      LEFT JOIN quote_payment qp ON qp.quote_id = quote_tbl.quote_id
      LEFT JOIN online_payment_details opd ON opd.payment_id = qp.payment_id
+     LEFT JOIN user_tbl ON user_tbl.user_id = quote_tbl.user_id
      WHERE quote_tbl.quote_id = ?
      ORDER BY opd.online_payment_id DESC
      LIMIT 1`,
@@ -177,10 +239,14 @@ export async function sendPaymentConfirmation(quote_id) {
     paymentDate,
     totalPaid,
     encryptedQuoteNo: encryptParam(quote.quote_no),
+    quote_person: quote.quote_person || "Canstar Light",
   });
 
+  const emails = await getCustomerEmails(quote);
+  if (!emails.length) return;
   await sendMail({
-    to: quote.email,
+    to: emails.join(", "),
+    cc: "canstarlightca@gmail.com",
     subject: `Payment Confirmation - Canstar Light`,
     html,
   });
@@ -225,8 +291,11 @@ export async function sendInstallationScheduled(quote_id, isRescheduled = false)
     ? `Your Canstar Light Installation Has Been Rescheduled`
     : `Your Canstar Light Installation is Scheduled`;
 
+  const emails = await getCustomerEmails(quote);
+  if (!emails.length) return;
   await sendMail({
-    to: quote.email,
+    to: emails.join(", "),
+    cc: "canstarlightca@gmail.com",
     subject,
     html,
   });
@@ -276,15 +345,19 @@ export async function sendInstallerAssignedEmail(quote_id, isRescheduled = false
 
   await sendMail({
     to: quote.installer_email,
+    cc: "canstarlightca@gmail.com",
     subject,
     html,
   });
 }
 
-// delete_quote: quote deleted → to customer
+// delete_quote: quote deleted → to admin/salesman
 export async function sendDeleteQuoteEmail(quote_id) {
   const [[quote]] = await pool.query(
-    "SELECT * FROM quote_tbl WHERE quote_id = ?",
+    `SELECT quote_tbl.*, CONCAT(user_tbl.fname, ' ', user_tbl.lname) AS quote_person, user_tbl.email AS quote_person_email
+     FROM quote_tbl 
+     LEFT JOIN user_tbl ON user_tbl.user_id = quote_tbl.user_id 
+     WHERE quote_tbl.quote_id = ?`,
     [quote_id]
   );
   if (!quote) return;
@@ -296,11 +369,17 @@ export async function sendDeleteQuoteEmail(quote_id) {
     formattedDate: formatDate(quote.created_at),
     expiryDate: addDays(quote.created_at, 4),
     main_total: quote.main_total,
+    quote_person: quote.quote_person || "Canstar Light",
   });
 
+  const recipients = [
+    quote.quote_person_email,
+    "canstarlightca@gmail.com",
+  ].filter(Boolean);
+
   await sendMail({
-    to: quote.email,
-    subject: `Your Quote Has Been Deleted - Canstar Light`,
+    to: recipients.join(", "),
+    subject: `Quote Deleted - ${quote.quote_no}`,
     html,
   });
 }
@@ -370,10 +449,12 @@ export async function sendInvoiceFullPaymentReceipt(quote_id) {
     `SELECT quote_tbl.*,
        qp.payment_id,
        opd.created_at as payment_created_at,
-       opd.amount as paid_amount
+       opd.amount as paid_amount,
+       CONCAT(user_tbl.fname, ' ', user_tbl.lname) AS quote_person
      FROM quote_tbl
      LEFT JOIN quote_payment qp ON qp.quote_id = quote_tbl.quote_id
      LEFT JOIN online_payment_details opd ON opd.payment_id = qp.payment_id
+     LEFT JOIN user_tbl ON user_tbl.user_id = quote_tbl.user_id
      WHERE quote_tbl.quote_id = ?
      ORDER BY opd.online_payment_id DESC
      LIMIT 1`,
@@ -388,10 +469,14 @@ export async function sendInvoiceFullPaymentReceipt(quote_id) {
     formattedDate: quote.payment_created_at ? formatDate(quote.payment_created_at) : formatDate(new Date()),
     amountPaid: parseFloat(quote.paid_amount ?? 0).toFixed(2),
     encryptedQuoteNo: encryptParam(quote.quote_no),
+    quote_person: quote.quote_person || "Canstar Light",
   });
 
+  const emails = await getCustomerEmails(quote);
+  if (!emails.length) return;
   await sendMail({
-    to: quote.email,
+    to: emails.join(", "),
+    cc: "canstarlightca@gmail.com",
     subject: `Full Payment Received - Canstar Light`,
     html,
   });
@@ -432,8 +517,10 @@ export async function sendOnTheWayEmail(quote_id, etaMinutes) {
   ].filter(Boolean).join(", ");
 
   // Send to customer, CC the quote person (salesman)
+  const emails = await getCustomerEmails(quote);
+  if (!emails.length) return;
   await sendMail({
-    to: quote.email,
+    to: emails.join(", "),
     cc: quote.salesman_email || "canstarlightca@gmail.com",
     subject: `Your Installer is On The Way! - Canstar Light`,
     html,
@@ -468,8 +555,10 @@ export async function sendControllerBoxConfirmation(quote_id, photoUrl) {
     "canstarlightca@gmail.com",
   ].filter(Boolean).join(", ");
 
+  const emails = await getCustomerEmails(quote);
+  if (!emails.length) return;
   await sendMail({
-    to: quote.email,
+    to: emails.join(", "),
     cc: quote.salesman_email || "canstarlightca@gmail.com",
     subject: `Controller Box Location Confirmation - Canstar Light`,
     html,
@@ -520,8 +609,10 @@ export async function sendPreAssessmentEmail(quote_id, images, notes) {
     "canstarlightca@gmail.com",
   ].filter(Boolean).join(", ");
 
+  const emails = await getCustomerEmails(quote);
+  if (!emails.length) return;
   await sendMail({
-    to: quote.email,
+    to: emails.join(", "),
     cc: quote.salesman_email || "canstarlightca@gmail.com",
     subject: `Pre-Installation Assessment - Canstar Light`,
     html,
