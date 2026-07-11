@@ -358,6 +358,16 @@ export const view_quote = async (req, res) => {
     );
     if (!quote) return res.status(404).json({ success: false, message: "Quote not found" });
 
+    if (quote.customer_id) {
+      const [[customer]] = await pool.query(
+        "SELECT company_name FROM customer_tbl WHERE cust_id = ?",
+        [quote.customer_id]
+      );
+      if (customer) {
+        quote.customer_company_name = customer.company_name || "";
+      }
+    }
+
     const discount = quote.discount_percentage;
     quote.discount_amount = (quote.total_controller_price + quote.total_feet_price) * discount / 100;
 
@@ -953,6 +963,7 @@ export const installs2 = async (req, res) => {
         CONCAT(user_tbl.fname,' ',user_tbl.lname) as salesman,
         CONCAT(installer_tbl.fname,' ',installer_tbl.lname) as installer_name,
         COALESCE(SUM(annotation_image_tbl.total_numerical_box), 0) as total_numerical_box,
+        MAX(annotation_image_tbl.color) as color,
         install_process_tbl.status as install_status
       FROM quote_tbl
       JOIN user_tbl ON user_tbl.user_id = quote_tbl.user_id
@@ -978,6 +989,7 @@ export const installs2 = async (req, res) => {
         CONCAT(user_tbl.fname,' ',user_tbl.lname) as salesman,
         CONCAT(installer_tbl.fname,' ',installer_tbl.lname) as installer_name,
         COALESCE(SUM(annotation_image_tbl.total_numerical_box), 0) as total_numerical_box,
+        MAX(annotation_image_tbl.color) as color,
         install_process_tbl.status as install_status
       FROM quote_tbl
       JOIN user_tbl ON user_tbl.user_id = quote_tbl.user_id
@@ -1003,6 +1015,7 @@ export const installs2 = async (req, res) => {
       SELECT quote_tbl.*,
         CONCAT(user_tbl.fname,' ',user_tbl.lname) as salesman,
         COALESCE(SUM(annotation_image_tbl.total_numerical_box), 0) as total_numerical_box,
+        MAX(annotation_image_tbl.color) as color,
         install_process_tbl.status as install_status
       FROM quote_tbl
       JOIN user_tbl ON user_tbl.user_id = quote_tbl.user_id

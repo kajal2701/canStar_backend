@@ -33,7 +33,11 @@ export const get_dashboard = async (req, res) => {
       JOIN user_tbl ON user_tbl.user_id = quote_tbl.user_id
     `;
     const params = [];
-    if (role && role != 1) {
+
+    // Roles allowed to see ALL quotes: 1 = admin, 2 = installer
+    const fullAccessRoles = [1, 2];
+
+    if (role && !fullAccessRoles.includes(Number(role))) {
       quoteQuery += " WHERE user_tbl.user_id = ?";
       params.push(user_id);
     }
