@@ -822,14 +822,16 @@ export const add_extra_work_process = async (req, res) => {
 };
 
 // POST /quote/send_final_quote
-// Body: { quote_id }
+// Body: { quote_id, send_email }
 export const send_final_quote = async (req, res) => {
   try {
-    const { quote_id } = req.body;
+    const { quote_id, send_email } = req.body;
     await pool.query(
       "UPDATE quote_tbl SET invoice_date = ? WHERE quote_id = ?", [today(), quote_id]
     );
-    sendFinalQuoteNotification(quote_id).catch(() => { });
+    
+    sendFinalQuoteNotification(quote_id, send_email !== false).catch(() => { });
+    
     return res.status(200).json({ success: true, status_code: 1, message: "Final Quote send successful." });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });

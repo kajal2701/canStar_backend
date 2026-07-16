@@ -179,7 +179,7 @@ export async function sendCustomerQuoteEmail(quote_id, is_updated = false) {
 }
 
 // send_final_quote: final invoice notification → to customer
-export async function sendFinalQuoteNotification(quote_id) {
+export async function sendFinalQuoteNotification(quote_id, sendToCustomer = true) {
   const [[quote]] = await pool.query(
     `SELECT quote_tbl.*,
        qp.payment_id, qp.pending_payment_amount,
@@ -202,11 +202,22 @@ export async function sendFinalQuoteNotification(quote_id) {
     quote_person: quote.quote_person || "Canstar Light",
   });
 
-  const emails = await getCustomerEmails(quote);
-  if (!emails.length) return;
+  let toEmails = [];
+  let ccEmail = "";
+
+  if (sendToCustomer) {
+    const emails = await getCustomerEmails(quote);
+    if (!emails.length) return;
+    toEmails = emails;
+    ccEmail = "canstarlightca@gmail.com";
+  } else {
+    toEmails = ["canstarlightca@gmail.com"];
+    ccEmail = "";
+  }
+
   await sendMail({
-    to: emails.join(", "),
-    cc: "canstarlightca@gmail.com",
+    to: toEmails.join(", "),
+    cc: ccEmail,
     subject: `Final Invoice - Canstar Light`,
     html,
   });
