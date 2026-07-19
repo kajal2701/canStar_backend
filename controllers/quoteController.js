@@ -17,19 +17,29 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 // --- helper function added outside exports ---
 const computeQuoteStatus = (row) => {
+  // --- Payment details ---
   const paymentDetails = row.payment_details || [];
   const hasPayment = paymentDetails.length > 0;
+
+  // status & payment_status from the FIRST payment record (quote_payment)
   let paymentStatus = null;
   let payStatus = null;
   if (hasPayment && paymentDetails[0]?.status !== undefined) {
     paymentStatus = paymentDetails[0].status;
     payStatus = paymentDetails[0].payment_status;
   }
+
+  // --- Loop ALL payments → derive paymentStatusValue ---
   let paymentStatusValue = null;
   if (hasPayment) {
     let allConfirmed = true;
     let allPending = true;
+
     paymentDetails.forEach((payment) => {
+      // Skip records missing the payment_status field (matches frontend)
+      if (payment.payment_status === undefined || payment.payment_status === null) {
+        return;
+      }
       if (payment.payment_status == 1) {
         allPending = false;
       } else if (payment.payment_status == 0) {
@@ -39,12 +49,16 @@ const computeQuoteStatus = (row) => {
         allPending = false;
       }
     });
+
     if (allConfirmed) paymentStatusValue = 1;
     else if (allPending) paymentStatusValue = 0;
     else paymentStatusValue = 0;
   }
+
+  // --- Date flag ---
   const hasInvoiceDate = !!row.invoice_date;
 
+  // --- Priority chain (matches frontend getQuoteStage exactly) ---
   if (row.status == 1) return "Created";
   if (paymentStatusValue == 1 && paymentStatus == 1) return "Fully Paid";
   if (paymentStatusValue != 1 && paymentStatus == 0 && hasInvoiceDate) return "Invoice Sent - Awaiting Confirmation";
