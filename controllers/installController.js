@@ -280,26 +280,3 @@ export const sendPreAssessment = async (req, res) => {
     return res.status(500).json({ success: false, message: error.message });
   }
 };
-
-// ─── POST /install/upload-image ──────────────────────────────────────────────
-// Uploads an install process image to the uploads/ folder
-// Returns the file path (e.g. "uploads/install_171234_abc.jpg")
-export const uploadInstallImage = async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ success: false, message: "No image file provided." });
-    }
-
-    const filePath = `uploads/${req.file.filename}`;
-
-    return res.status(200).json({
-      success: true,
-      message: "Image uploaded successfully.",
-      filePath,
-      fileName: req.file.originalname,
-    });
-  } catch (error) {
-    console.error("uploadInstallImage error:", error);
-    return res.status(500).json({ success: false, message: error.message });
-  }
-};
