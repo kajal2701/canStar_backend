@@ -1,0 +1,7 @@
+# Apache serves this folder directly in production (bypassing Express),
+# so CORS headers must be set here for the front-end canvas editors to
+# load these images without tainting.
+<IfModule mod_headers.c>
+  Header set Access-Control-Allow-Origin "*"
+  Header set Access-Control-Allow-Methods "GET, OPTIONS"
+</IfModule>
