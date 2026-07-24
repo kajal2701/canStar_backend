@@ -123,7 +123,7 @@ export async function sendNewQuoteNotification(quote_id) {
     lname: quote.lname,
     quote_no: quote.quote_no,
     formattedDate: formatDate(quote.created_at),
-    expiryDate: addDays(quote.created_at, 4),
+    expiryDate: addDays(quote.created_at, 15),
     main_total: quote.main_total,
     encryptedQuoteNo: encryptParam(quote.quote_no),
     quote_person: quote.quote_person || "Canstar Light",
@@ -158,7 +158,7 @@ export async function sendCustomerQuoteEmail(quote_id, is_updated = false) {
     lname: quote.lname,
     quote_no: quote.quote_no,
     formattedDate: formatDate(quote.created_at),
-    expiryDate: addDays(quote.created_at, 4),
+    expiryDate: addDays(quote.created_at, 15),
     deposit_amount: quote.deposit_amount,
     main_total: quote.main_total,
     encryptedQuoteNo: encryptParam(quote.quote_no),
@@ -286,7 +286,7 @@ export async function sendInstallationScheduled(quote_id, isRescheduled = false)
     ? "📅 Canstar Light Installation Rescheduled"
     : "Canstar Light Installation Scheduled!";
   const intro_text = isRescheduled
-    ? "We wanted to let you know that your Canstar Lights installation has been <strong>rescheduled</strong>. Please review the updated details below."
+    ? "We wanted to let you know that your Canstar Light installation has been <strong>rescheduled</strong>. Please review the updated details below."
     : "<strong>Important:</strong> Please review this email carefully, as it contains key information about your installation.";
   const note_text = isRescheduled
     ? "<strong>&#9888; Updated Date:</strong> Your installation has been moved to a new date &mdash; please make note of the updated schedule below."
@@ -388,7 +388,7 @@ export async function sendDeleteQuoteEmail(quote_id) {
     lname: quote.lname,
     quote_no: quote.quote_no,
     formattedDate: formatDate(quote.created_at),
-    expiryDate: addDays(quote.created_at, 4),
+    expiryDate: addDays(quote.created_at, 15),
     main_total: quote.main_total,
     quote_person: quote.quote_person || "Canstar Light",
   });

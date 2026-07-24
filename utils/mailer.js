@@ -18,7 +18,7 @@ const transporter = nodemailer.createTransport({
 // ─── sendMail — same signature as before ──────────────────────────────────────
 export const sendMail = async ({ to, cc, subject, html, from, replyTo }) => {
   const mailOptions = {
-    from: from || `"CanStar Lights" <quote@canstarlight.ca>`,
+    from: from || `"Canstar Light" <quote@canstarlight.ca>`,
     to,
     subject,
     html,

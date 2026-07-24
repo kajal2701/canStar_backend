@@ -258,6 +258,7 @@ export const add_quote_process = async (req, res) => {
       total_controller_price, total_feet_price,
       discount_percentage, gst_percentage, gst, main_total,
       notes, adminnotes, annotation_data,
+      easy_plug_notes, controller_notes,
     } = req.body;
 
     // product_data / custom_product_data may arrive as JSON strings (multipart) or arrays (JSON body)
@@ -349,6 +350,35 @@ export const add_quote_process = async (req, res) => {
             "INSERT INTO quote_images_tbl (quote_id, annotation_image_id, image_url, type, created_at) VALUES ?",
             [image_batch]
           );
+        }
+      }
+
+      // ── Insert access images/notes (Easy Plug & Controller) into access_image_tbl ──
+      const accessTypes = [
+        { type: "plug", notes: easy_plug_notes, filePrefix: "access_image_plug_" },
+        { type: "controller", notes: controller_notes, filePrefix: "access_image_controller_" },
+      ];
+      for (const at of accessTypes) {
+        const accessFiles = files.filter((f) => f.fieldname.startsWith(at.filePrefix));
+        if (accessFiles.length > 0) {
+          // data_type = 1 (images), data = JSON array of file paths
+          const paths = accessFiles.map((f) => `uploads/${f.filename}`);
+          await pool.query("INSERT INTO access_image_tbl SET ?", [{
+            quote_id,
+            access_type: at.type,
+            data: JSON.stringify(paths),
+            data_type: 1,
+            created_at: now(),
+          }]);
+        } else if (at.notes) {
+          // data_type = 2 (notes), data = plain text
+          await pool.query("INSERT INTO access_image_tbl SET ?", [{
+            quote_id,
+            access_type: at.type,
+            data: at.notes,
+            data_type: 2,
+            created_at: now(),
+          }]);
         }
       }
 
@@ -550,6 +580,7 @@ export const edit_quote_process = async (req, res) => {
       total_controller_price, total_feet_price,
       discount_percentage, gst_percentage, gst, main_total,
       notes, adminnotes, annotation_data,
+      easy_plug_notes, controller_notes,
     } = req.body;
 
     const parseField = (val) => {
@@ -698,6 +729,51 @@ export const edit_quote_process = async (req, res) => {
       );
     }
 
+    // ── Update access images/notes (Easy Plug & Controller) in access_image_tbl ──
+    const accessTypes = [
+      { type: "plug", notes: easy_plug_notes, filePrefix: "access_image_plug_" },
+      { type: "controller", notes: controller_notes, filePrefix: "access_image_controller_" },
+    ];
+    for (const at of accessTypes) {
+      const accessFiles = files.filter((f) => f.fieldname.startsWith(at.filePrefix) && !f.fieldname.endsWith("_existing"));
+      // Read existing paths that frontend tells us to keep
+      const existingRaw = req.body[`${at.filePrefix}existing`];
+      let existingPaths = [];
+      if (existingRaw) {
+        try { existingPaths = JSON.parse(existingRaw); } catch (e) { existingPaths = []; }
+      }
+
+      // Delete existing row for this quote_id + access_type
+      await pool.query(
+        "DELETE FROM access_image_tbl WHERE quote_id = ? AND access_type = ?",
+        [quote_id, at.type]
+      );
+
+      // Merge existing paths with new uploaded file paths
+      const newPaths = accessFiles.map((f) => `uploads/${f.filename}`);
+      const allPaths = [...existingPaths, ...newPaths];
+
+      if (allPaths.length > 0) {
+        // data_type = 1 (images), data = JSON array of file paths
+        await pool.query("INSERT INTO access_image_tbl SET ?", [{
+          quote_id,
+          access_type: at.type,
+          data: JSON.stringify(allPaths),
+          data_type: 1,
+          created_at: now(),
+        }]);
+      } else if (at.notes) {
+        // data_type = 2 (notes), data = plain text
+        await pool.query("INSERT INTO access_image_tbl SET ?", [{
+          quote_id,
+          access_type: at.type,
+          data: at.notes,
+          data_type: 2,
+          created_at: now(),
+        }]);
+      }
+    }
+
     if (result.affectedRows > 0) {
       return res.status(200).json({ success: true, status_code: "1", message: "Quote Edit sucessfully." });
     } else {
@@ -843,9 +919,9 @@ export const send_final_quote = async (req, res) => {
     await pool.query(
       "UPDATE quote_tbl SET invoice_date = ? WHERE quote_id = ?", [today(), quote_id]
     );
-    
+
     sendFinalQuoteNotification(quote_id, send_email !== false).catch(() => { });
-    
+
     return res.status(200).json({ success: true, status_code: 1, message: "Final Quote send successful." });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
