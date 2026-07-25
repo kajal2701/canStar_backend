@@ -15,10 +15,10 @@ export const manage_customer = async (req, res) => {
 };
 
 // POST /customer/add_customer_process
-// Body: { fname, lname, email, phone, street, city, state, gst, post_code, country }
+// Body: { fname, lname, company_name, lead_source, email, phone, street, city, state, gst, post_code, country }
 export const add_customer_process = async (req, res) => {
   try {
-    const { fname, lname, company_name, email, email_json, phone, street, city, state, gst, post_code, country } = req.body;
+    const { fname, lname, company_name, lead_source, email, email_json, phone, street, city, state, gst, post_code, country } = req.body;
 
     // Check duplicate email
     const [existing] = await pool.query(
@@ -33,9 +33,9 @@ export const add_customer_process = async (req, res) => {
     }
 
     const [result] = await pool.query(
-      `INSERT INTO customer_tbl (fname, lname, company_name, email, email_json, phone, address, city, state, gst, post_code, country, active_state, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
-      [fname, lname, company_name, email, email_json, phone, street, city, state, gst, post_code, country, now()]
+      `INSERT INTO customer_tbl (fname, lname, company_name, lead_source, email, email_json, phone, address, city, state, gst, post_code, country, active_state, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
+      [fname, lname, company_name, lead_source || null, email, email_json, phone, street, city, state, gst, post_code, country, now()]
     );
 
     if (result.affectedRows > 0) {
@@ -65,10 +65,10 @@ export const get_customer_by_id = async (req, res) => {
 };
 
 // POST /customer/update_customer_process
-// Body: { customer_id, fname, lname, email, phone, street, city, state, gst, country, post_code }
+// Body: { customer_id, fname, lname, company_name, lead_source, email, phone, street, city, state, gst, country, post_code }
 export const update_customer_process = async (req, res) => {
   try {
-    const { customer_id, fname, lname, company_name, email, email_json, phone, street, city, state, gst, country, post_code } = req.body;
+    const { customer_id, fname, lname, company_name, lead_source, email, email_json, phone, street, city, state, gst, country, post_code } = req.body;
 
     // Check email conflict with other customers
     const [conflict] = await pool.query(
@@ -84,9 +84,9 @@ export const update_customer_process = async (req, res) => {
     }
 
     const [result] = await pool.query(
-      `UPDATE customer_tbl SET fname=?, lname=?, company_name=?, email=?, email_json=?, phone=?, address=?, city=?, state=?, gst=?, country=?, post_code=?, modified_at=?
+      `UPDATE customer_tbl SET fname=?, lname=?, company_name=?, lead_source=?, email=?, email_json=?, phone=?, address=?, city=?, state=?, gst=?, country=?, post_code=?, modified_at=?
        WHERE cust_id=?`,
-      [fname, lname, company_name, email, email_json, phone, street, city, state, gst, country, post_code, now(), customer_id]
+      [fname, lname, company_name, lead_source || null, email, email_json, phone, street, city, state, gst, country, post_code, now(), customer_id]
     );
 
     if (result.affectedRows > 0) {
