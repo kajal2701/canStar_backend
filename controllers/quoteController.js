@@ -901,6 +901,29 @@ export const add_extra_work_process = async (req, res) => {
       "UPDATE quote_tbl SET ? WHERE quote_id = ?", [data, quote_id]
     );
 
+    // Recalculate pending payment since main_total changed
+    const new_main_total = parseFloat(main_total || 0);
+    const [[payment_record]] = await pool.query(
+      "SELECT * FROM quote_payment WHERE quote_id = ?", [quote_id]
+    );
+    if (payment_record) {
+      const [[confirmed_row]] = await pool.query(
+        "SELECT COALESCE(SUM(amount), 0) as total FROM online_payment_details WHERE quote_id = ? AND status = 1",
+        [quote_id]
+      );
+      let confirmed = parseFloat(confirmed_row?.total || 0);
+      if (!confirmed) {
+        confirmed = parseFloat(payment_record.part_payment_amount || 0);
+      }
+      let new_pending = parseFloat((new_main_total - confirmed).toFixed(2));
+      if (new_pending < 0) new_pending = 0;
+      const payment_status = new_pending <= 0 ? 1 : 0;
+      await pool.query(
+        "UPDATE quote_payment SET pending_payment_amount = ?, status = ? WHERE quote_id = ?",
+        [new_pending, payment_status, quote_id]
+      );
+    }
+
     if (result.affectedRows > 0) {
       return res.status(200).json({ success: true, status_code: "1", message: "Extra work added sucessfully." });
     } else {
