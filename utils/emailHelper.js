@@ -782,3 +782,55 @@ export async function sendFollowupScheduledEmail(quote_id, followup_date) {
     html,
   });
 }
+
+// send_warranty_email: warranty registration + Google review request → to customer
+export async function sendReviewAndWarrantyEmail(quote_id) {
+  const [[quote]] = await pool.query(
+    `SELECT quote_tbl.*,
+       CONCAT(user_tbl.fname, ' ', user_tbl.lname) AS quote_person,
+       user_tbl.email AS quote_person_email
+     FROM quote_tbl
+     LEFT JOIN user_tbl ON user_tbl.user_id = quote_tbl.user_id
+     WHERE quote_tbl.quote_id = ?`,
+    [quote_id]
+  );
+  if (!quote) return;
+
+  // Parse warranty_data JSON
+  let warranty = quote.warranty_data;
+  if (typeof warranty === "string") {
+    try { warranty = JSON.parse(warranty); } catch { warranty = null; }
+  }
+  if (!warranty) return;
+
+  const html = renderTemplate("review_warranty_email", {
+    fname: quote.fname,
+    lname: quote.lname,
+    quote_no: quote.quote_no,
+    address: quote.address ?? "",
+    city: quote.city ?? "",
+    start_date: formatDateUTC(warranty.start_date),
+    product_years: String(warranty.product_years),
+    product_end_date: formatDateUTC(warranty.product_end_date),
+    labour_years: String(warranty.labour_years),
+    labour_end_date: formatDateUTC(warranty.labour_end_date),
+    quote_person: quote.quote_person || "Canstar Light",
+  });
+
+  // Mark email as sent
+  const now = new Date().toISOString().slice(0, 19).replace("T", " ");
+  await pool.query(
+    "UPDATE quote_tbl SET review_email_sent_at = ? WHERE quote_id = ?",
+    [now, quote_id]
+  );
+
+  const emails = await getCustomerEmails(quote);
+  if (!emails.length) return;
+  const ccEmails = [quote.quote_person_email, "canstarlightca@gmail.com"].filter(Boolean).join(", ");
+  await sendMail({
+    to: emails.join(", "),
+    cc: ccEmails,
+    subject: `Warranty Registration & Review Request - Canstar Light`,
+    html,
+  });
+}

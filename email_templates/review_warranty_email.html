@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Warranty Registration & Review Request</title>
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .email-container {
+            max-width: 650px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            border: 1px solid #2563eb;
+        }
+
+        .header {
+            background-color: #2563eb;
+            color: white;
+            text-align: center;
+            padding: 25px 20px;
+            font-size: 22px;
+            font-weight: 600;
+        }
+
+        .header p {
+            font-size: 14px;
+            margin: 8px 0 0;
+            font-weight: 400;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 30px;
+            font-size: 16px;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .content p {
+            margin-bottom: 15px;
+        }
+
+        .review-box {
+            background: linear-gradient(135deg, #fef3c7, #fde68a);
+            border: 2px solid #f59e0b;
+            border-radius: 10px;
+            padding: 25px;
+            text-align: center;
+            margin: 25px 0;
+        }
+
+        .review-box h3 {
+            color: #92400e;
+            margin: 0 0 10px;
+            font-size: 18px;
+        }
+
+        .review-box p {
+            color: #78350f;
+            margin: 0 0 15px;
+            font-size: 14px;
+        }
+
+        .review-btn {
+            display: inline-block;
+            background-color: #f59e0b;
+            color: #ffffff !important;
+            padding: 14px 30px;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 16px;
+            letter-spacing: 0.5px;
+        }
+
+        .warranty-section {
+            background-color: #f0fdf4;
+            border-left: 4px solid #16a34a;
+            padding: 20px;
+            margin: 25px 0;
+            border-radius: 5px;
+        }
+
+        .warranty-section h3 {
+            color: #166534;
+            margin: 0 0 15px;
+            font-size: 18px;
+        }
+
+        .warranty-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .warranty-table th {
+            background-color: #dcfce7;
+            color: #166534;
+            text-align: left;
+            padding: 10px 15px;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-bottom: 2px solid #bbf7d0;
+        }
+
+        .warranty-table td {
+            padding: 10px 15px;
+            border-bottom: 1px solid #e5e7eb;
+            font-size: 14px;
+        }
+
+        .warranty-table td.label {
+            color: #666;
+            font-weight: 500;
+            width: 45%;
+        }
+
+        .warranty-table td.value {
+            color: #333;
+            font-weight: 600;
+        }
+
+        .badge {
+            display: inline-block;
+            background-color: #16a34a;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .footer {
+            text-align: center;
+            background-color: #f4f4f4;
+            padding: 20px;
+            font-size: 12px;
+            color: #777;
+        }
+
+        .footer p {
+            margin: 0;
+        }
+
+        .footer a {
+            color: #777;
+            text-decoration: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="email-container">
+        <div class="header">
+            Thank You for Choosing Canstar Light! ⭐
+            <p>Your installation is complete — here's your warranty confirmation</p>
+        </div>
+
+        <div class="content">
+            <p>Dear <strong>{{fname}} {{lname}}</strong>,</p>
+
+            <p>Thank you for choosing Canstar Light for your lighting installation. We truly value your business and hope
+                you're enjoying your new lights!</p>
+
+            <!-- Google Review Request -->
+            <div class="review-box">
+                <h3>⭐ We'd Love Your Feedback!</h3>
+                <p>Your experience matters to us. A quick Google review helps us continue
+                    providing excellent service to customers like you.</p>
+                <a href="https://g.page/r/CYkzgKnvOlXoEBM/review" class="review-btn">
+                    ⭐ Leave a Google Review
+                </a>
+            </div>
+
+            <!-- Warranty Registration -->
+            <div class="warranty-section">
+                <h3>🛡️ Warranty Registration Confirmation</h3>
+                <p style="margin: 0 0 15px; color: #166534; font-size: 14px;">
+                    Your warranty has been registered. Please keep this email for your records.
+                </p>
+
+                <table class="warranty-table">
+                    <tr>
+                        <th colspan="2">Warranty Details</th>
+                    </tr>
+                    <tr>
+                        <td class="label">Quote Number</td>
+                        <td class="value">{{quote_no}}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Installation Address</td>
+                        <td class="value">{{address}}, {{city}}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Warranty Start Date</td>
+                        <td class="value">{{start_date}}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Product Warranty</td>
+                        <td class="value">{{product_years}} Years — Ends {{product_end_date}}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Labour Warranty</td>
+                        <td class="value">{{labour_years}} Years — Ends {{labour_end_date}}</td>
+                    </tr>
+                </table>
+            </div>
+
+            <p>If you have any questions about your warranty or need assistance, please don't hesitate to contact us.</p>
+
+            <p>Warm regards,<br><strong>{{quote_person}}</strong><br>Canstar Light</p>
+        </div>
+
+        <div class="footer">
+            <p>&copy; 2026 Canstar Light. All rights reserved.</p>
+            <p><a href="https://portal.canstarlights.ca/quote/termsconditions">Privacy Policy</a></p>
+        </div>
+    </div>
+</body>
+
+</html>

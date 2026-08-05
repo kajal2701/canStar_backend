@@ -10,6 +10,7 @@ import {
   sendInvoiceFullPaymentReceipt,
   decryptParam,
   sendFollowupScheduledEmail,
+  sendReviewAndWarrantyEmail,
 } from "../utils/emailHelper.js";
 
 const now = () => new Date().toISOString().slice(0, 19).replace("T", " ");
@@ -456,6 +457,11 @@ export const view_quote = async (req, res) => {
       [quote_id]
     );
     quote.payment_details = payment_details || null;
+
+    // Parse warranty_data JSON if present
+    if (quote.warranty_data && typeof quote.warranty_data === "string") {
+      try { quote.warranty_data = JSON.parse(quote.warranty_data); } catch { quote.warranty_data = null; }
+    }
 
     return res.status(200).json({ success: true, data: quote });
   } catch (error) {
@@ -1336,6 +1342,98 @@ export const installs = async (req, res) => {
     return res.status(200).json({
       success: true,
       data: { upcoming_installations: upcoming, non_scheduled_jobs: non_scheduled },
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// POST /quote/set_warranty_params
+// Body: { quote_id, product_years, labour_years }
+export const set_warranty_params = async (req, res) => {
+  try {
+    const { quote_id, product_years = 5, labour_years = 4 } = req.body;
+
+    if (!quote_id) {
+      return res.status(400).json({ success: false, message: "quote_id is required." });
+    }
+
+    // Fetch installation_date
+    const [[quote]] = await pool.query(
+      "SELECT installation_date FROM quote_tbl WHERE quote_id = ?",
+      [quote_id]
+    );
+    if (!quote) {
+      return res.status(404).json({ success: false, message: "Quote not found." });
+    }
+    if (!quote.installation_date) {
+      return res.status(400).json({ success: false, message: "Installation date is not set. Cannot calculate warranty dates." });
+    }
+
+    // Calculate dates
+    const startDate = new Date(quote.installation_date);
+    const start_date = startDate.toISOString().slice(0, 10);
+
+    const productEnd = new Date(startDate);
+    productEnd.setFullYear(productEnd.getFullYear() + Number(product_years));
+    const product_end_date = productEnd.toISOString().slice(0, 10);
+
+    const labourEnd = new Date(startDate);
+    labourEnd.setFullYear(labourEnd.getFullYear() + Number(labour_years));
+    const labour_end_date = labourEnd.toISOString().slice(0, 10);
+
+    const warranty_data = {
+      product_years: Number(product_years),
+      labour_years: Number(labour_years),
+      start_date,
+      product_end_date,
+      labour_end_date,
+    };
+
+    await pool.query(
+      "UPDATE quote_tbl SET warranty_data = ? WHERE quote_id = ?",
+      [JSON.stringify(warranty_data), quote_id]
+    );
+
+    return res.status(200).json({
+      success: true,
+      status_code: "1",
+      message: "Warranty parameters saved successfully.",
+      warranty_data,
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// POST /quote/send_warranty_email
+// Body: { quote_id }
+export const send_warranty_email = async (req, res) => {
+  try {
+    const { quote_id } = req.body;
+
+    if (!quote_id) {
+      return res.status(400).json({ success: false, message: "quote_id is required." });
+    }
+
+    // Validate warranty_data exists
+    const [[quote]] = await pool.query(
+      "SELECT warranty_data FROM quote_tbl WHERE quote_id = ?",
+      [quote_id]
+    );
+    if (!quote) {
+      return res.status(404).json({ success: false, message: "Quote not found." });
+    }
+    if (!quote.warranty_data) {
+      return res.status(400).json({ success: false, message: "Warranty parameters must be set before sending the email." });
+    }
+
+    sendReviewAndWarrantyEmail(quote_id).catch(() => { });
+
+    return res.status(200).json({
+      success: true,
+      status_code: "1",
+      message: "Warranty & Review email sent successfully.",
     });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });

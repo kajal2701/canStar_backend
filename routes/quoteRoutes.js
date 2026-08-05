@@ -44,6 +44,8 @@ import {
   saveQuoteSanction,
   saveFollowupDate,
   manage_quote_export,
+  set_warranty_params,
+  send_warranty_email,
 } from "../controllers/quoteController.js";
 
 const router = express.Router();
@@ -74,5 +76,8 @@ router.get("/installs2", installs2);
 router.get("/calendar_installs", calendar_installs);
 router.post("/saveQuoteSanction", saveQuoteSanction);
 router.post("/saveFollowupDate", saveFollowupDate);
+router.post("/set_warranty_params", set_warranty_params);
+router.post("/send_warranty_email", send_warranty_email);
 
 export default router;
+
