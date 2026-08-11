@@ -1256,7 +1256,6 @@ export const saveQuoteSanction = async (req, res) => {
     const data = {
       sanction_reason: reason,
       sanction_notes: reason === 4 ? sanction_notes.toString().trim() : null,
-      status: 6, // sanctioned
     };
 
     const [result] = await pool.query(
