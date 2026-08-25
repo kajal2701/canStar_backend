@@ -1,7 +1,7 @@
 import pool from "../db.js";
 
 // GET /report/sales-by-month
-// Returns monthly revenue + quote count, optionally filtered by year
+// Returns monthly total quotes, converted (fully paid) quotes, and revenue from fully paid quotes
 export const getSalesByMonth = async (req, res) => {
   try {
     const { year } = req.query;
@@ -9,19 +9,29 @@ export const getSalesByMonth = async (req, res) => {
     let yearFilter = "";
 
     if (year) {
-      yearFilter = "AND YEAR(created_at) = ?";
+      yearFilter = "AND YEAR(q.created_at) = ?";
       params.push(year);
     }
 
     const [rows] = await pool.query(
       `SELECT
-         DATE_FORMAT(created_at, '%Y-%m') as month,
-         DATE_FORMAT(created_at, '%b %Y') as month_label,
-         COUNT(*) as total_quotes,
-         COALESCE(SUM(main_total), 0) as total_revenue,
-         COALESCE(AVG(main_total), 0) as avg_deal_size
-       FROM quote_tbl
-       WHERE status != 5 ${yearFilter}
+         DATE_FORMAT(q.created_at, '%Y-%m') AS month,
+         DATE_FORMAT(q.created_at, '%b %Y') AS month_label,
+         COUNT(DISTINCT q.quote_id) AS total_quotes,
+         COUNT(DISTINCT CASE WHEN fp.quote_id IS NOT NULL THEN q.quote_id END) AS converted_quotes,
+         COALESCE(SUM(DISTINCT CASE WHEN fp.quote_id IS NOT NULL THEN q.main_total ELSE 0 END), 0) AS total_revenue
+       FROM quote_tbl q
+       LEFT JOIN (
+         SELECT qp.quote_id
+         FROM quote_payment qp
+         WHERE qp.status = 1
+           AND NOT EXISTS (
+             SELECT 1 FROM online_payment_details opd
+             WHERE opd.payment_id = qp.payment_id
+               AND (opd.status != 1 OR opd.status IS NULL)
+           )
+       ) fp ON fp.quote_id = q.quote_id
+       WHERE q.status != 5 ${yearFilter}
        GROUP BY month, month_label
        ORDER BY month ASC`,
       params
@@ -31,19 +41,18 @@ export const getSalesByMonth = async (req, res) => {
       success: true,
       data: rows.map((r) => ({
         ...r,
-        total_revenue: parseFloat(r.total_revenue),
-        avg_deal_size: parseFloat(r.avg_deal_size),
         total_quotes: parseInt(r.total_quotes),
+        converted_quotes: parseInt(r.converted_quotes),
+        total_revenue: parseFloat(r.total_revenue),
       })),
     });
   } catch (error) {
-
     return res.status(500).json({ success: false, message: error.message });
   }
 };
 
 // GET /report/sales-by-person
-// Returns revenue, quote count, avg deal, max deal grouped by salesperson, optionally filtered by year/month
+// Returns total quotes, converted (fully paid) quotes, and revenue from fully paid quotes grouped by salesperson
 export const getSalesByPerson = async (req, res) => {
   try {
     const { year, month } = req.query;
@@ -65,13 +74,22 @@ export const getSalesByPerson = async (req, res) => {
     const [rows] = await pool.query(
       `SELECT
          u.user_id,
-         CONCAT(u.fname, ' ', u.lname) as salesperson,
-         COUNT(*) as total_quotes,
-         COALESCE(SUM(q.main_total), 0) as total_revenue,
-         COALESCE(AVG(q.main_total), 0) as avg_deal_size,
-         COALESCE(MAX(q.main_total), 0) as max_deal
+         CONCAT(u.fname, ' ', u.lname) AS salesperson,
+         COUNT(DISTINCT q.quote_id) AS total_quotes,
+         COUNT(DISTINCT CASE WHEN fp.quote_id IS NOT NULL THEN q.quote_id END) AS converted_quotes,
+         COALESCE(SUM(DISTINCT CASE WHEN fp.quote_id IS NOT NULL THEN q.main_total ELSE 0 END), 0) AS total_revenue
        FROM quote_tbl q
        JOIN user_tbl u ON u.user_id = q.user_id
+       LEFT JOIN (
+         SELECT qp.quote_id
+         FROM quote_payment qp
+         WHERE qp.status = 1
+           AND NOT EXISTS (
+             SELECT 1 FROM online_payment_details opd
+             WHERE opd.payment_id = qp.payment_id
+               AND (opd.status != 1 OR opd.status IS NULL)
+           )
+       ) fp ON fp.quote_id = q.quote_id
        ${whereClause}
        GROUP BY u.user_id, salesperson
        ORDER BY total_revenue DESC`,
@@ -82,20 +100,18 @@ export const getSalesByPerson = async (req, res) => {
       success: true,
       data: rows.map((r) => ({
         ...r,
-        total_revenue: parseFloat(r.total_revenue),
-        avg_deal_size: parseFloat(r.avg_deal_size),
-        max_deal: parseFloat(r.max_deal),
         total_quotes: parseInt(r.total_quotes),
+        converted_quotes: parseInt(r.converted_quotes),
+        total_revenue: parseFloat(r.total_revenue),
       })),
     });
   } catch (error) {
-
     return res.status(500).json({ success: false, message: error.message });
   }
 };
 
 // GET /report/color-usage
-// Returns colour usage statistics from annotations, optionally filtered by year/month
+// Returns colour usage statistics from annotations for fully paid quotes, optionally filtered by year/month
 export const getColorUsage = async (req, res) => {
   try {
     const { year, month } = req.query;
@@ -103,7 +119,8 @@ export const getColorUsage = async (req, res) => {
     const conditions = [
       "q.status != 5",
       "a.color IS NOT NULL",
-      "a.color != ''"
+      "a.color != ''",
+      "fp.quote_id IS NOT NULL"
     ];
 
     if (year) {
@@ -122,10 +139,19 @@ export const getColorUsage = async (req, res) => {
       `SELECT
          a.color,
          COUNT(*) as usage_count,
-         COALESCE(SUM(a.total_numerical_box), 0) as total_boxes,
-         COALESCE(SUM(a.total_amount), 0) as total_revenue
+         COALESCE(SUM(a.total_numerical_box), 0) as total_boxes
        FROM annotation_image_tbl a
        JOIN quote_tbl q ON q.quote_id = a.quote_id
+       LEFT JOIN (
+         SELECT qp.quote_id
+         FROM quote_payment qp
+         WHERE qp.status = 1
+           AND NOT EXISTS (
+             SELECT 1 FROM online_payment_details opd
+             WHERE opd.payment_id = qp.payment_id
+               AND (opd.status != 1 OR opd.status IS NULL)
+           )
+       ) fp ON fp.quote_id = q.quote_id
        ${whereClause}
        GROUP BY a.color
        ORDER BY total_boxes DESC`,
@@ -138,7 +164,6 @@ export const getColorUsage = async (req, res) => {
         ...r,
         usage_count: parseInt(r.usage_count),
         total_boxes: parseFloat(r.total_boxes),
-        total_revenue: parseFloat(r.total_revenue),
       })),
     });
   } catch (error) {

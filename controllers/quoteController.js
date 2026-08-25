@@ -293,6 +293,7 @@ export const add_quote_process = async (req, res) => {
       adminnotes: adminnotes || "",
       customer_visible: "yes",
       status: 1,
+      warranty_version: "new",
       created_at: now(),
     };
 
@@ -951,7 +952,7 @@ export const send_final_quote = async (req, res) => {
 
     sendFinalQuoteNotification(quote_id, send_email !== false).catch(() => { });
 
-    return res.status(200).json({ success: true, status_code: 1, message: "Final Quote send successful." });
+    return res.status(200).json({ success: true, status_code: 1, message: "Final Invoice send successful." });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
@@ -1348,10 +1349,10 @@ export const installs = async (req, res) => {
 };
 
 // POST /quote/set_warranty_params
-// Body: { quote_id, product_years, labour_years }
+// Body: { quote_id, product_years, labour_years, warranty_version }
 export const set_warranty_params = async (req, res) => {
   try {
-    const { quote_id, product_years = 5, labour_years = 4 } = req.body;
+    const { quote_id, product_years = 5, labour_years = 4, warranty_version } = req.body;
 
     if (!quote_id) {
       return res.status(400).json({ success: false, message: "quote_id is required." });
@@ -1389,9 +1390,15 @@ export const set_warranty_params = async (req, res) => {
       labour_end_date,
     };
 
+    // Build update fields — always save warranty_data, optionally update warranty_version
+    const updateFields = { warranty_data: JSON.stringify(warranty_data) };
+    if (warranty_version === "new" || warranty_version === "old") {
+      updateFields.warranty_version = warranty_version;
+    }
+
     await pool.query(
-      "UPDATE quote_tbl SET warranty_data = ? WHERE quote_id = ?",
-      [JSON.stringify(warranty_data), quote_id]
+      "UPDATE quote_tbl SET ? WHERE quote_id = ?",
+      [updateFields, quote_id]
     );
 
     return res.status(200).json({
