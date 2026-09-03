@@ -18,6 +18,12 @@ import {
   getConnectors, addConnector, editConnector, deleteConnector,
   // Cables
   getCables, addCable, editCable, deleteCable,
+  // Outer Cases
+  getOutercases, addOutercase, editOutercase, deleteOutercase,
+  // App Controllers
+  getAppcontrollers, addAppcontroller, editAppcontroller, deleteAppcontroller,
+  // Power Supplies
+  getPowersupplies, addPowersupply, editPowersupply, deletePowersupply,
 } from "../controllers/inventoryController.js";
 
 const router = express.Router();
@@ -75,5 +81,23 @@ router.get("/cables", getCables);
 router.post("/cables/add", addCable);
 router.post("/cables/edit", editCable);
 router.post("/cables/delete", deleteCable);
+
+// Outer Cases
+router.get("/outercases", getOutercases);
+router.post("/outercases/add", addOutercase);
+router.post("/outercases/edit", editOutercase);
+router.post("/outercases/delete", deleteOutercase);
+
+// App Controllers
+router.get("/appcontrollers", getAppcontrollers);
+router.post("/appcontrollers/add", addAppcontroller);
+router.post("/appcontrollers/edit", editAppcontroller);
+router.post("/appcontrollers/delete", deleteAppcontroller);
+
+// Power Supplies
+router.get("/powersupplies", getPowersupplies);
+router.post("/powersupplies/add", addPowersupply);
+router.post("/powersupplies/edit", editPowersupply);
+router.post("/powersupplies/delete", deletePowersupply);
 
 export default router;

@@ -326,11 +326,15 @@ export async function sendInstallerAssignedEmail(quote_id, isRescheduled = false
        CONCAT(installer.fname,' ',installer.lname) as installer_name,
        installer.fname as installer_fname,
        installer.email as installer_email,
-       salesman.email as salesman_email
+       salesman.email as salesman_email,
+       COALESCE(SUM(ann.total_numerical_box), 0) as total_numerical_box,
+       GROUP_CONCAT(DISTINCT ann.color ORDER BY ann.color SEPARATOR ', ') as colors
      FROM quote_tbl
      LEFT JOIN user_tbl AS installer ON installer.user_id = quote_tbl.installer_id
      LEFT JOIN user_tbl AS salesman ON salesman.user_id = quote_tbl.user_id
-     WHERE quote_tbl.quote_id = ?`,
+     LEFT JOIN annotation_image_tbl ann ON ann.quote_id = quote_tbl.quote_id
+     WHERE quote_tbl.quote_id = ?
+     GROUP BY quote_tbl.quote_id`,
     [quote_id]
   );
   if (!quote || !quote.installer_email) return;
@@ -350,10 +354,14 @@ export async function sendInstallerAssignedEmail(quote_id, isRescheduled = false
     installer_fname: quote.installer_fname ?? "Installer",
     quote_no: quote.quote_no,
     customer_name: `${quote.fname} ${quote.lname}`,
+    customer_phone: quote.phone ?? "",
     address: quote.address ?? "",
     city: quote.city ?? "",
     state: quote.state ?? "",
     country: quote.country ?? "",
+    soffit_color: quote.colors ?? "",
+    total_feet: quote.total_numerical_box ?? "",
+    view_quote_link: `https://portal.canstarlights.ca/quote/view_quote_admin/${quote.quote_id}`,
     installDate,
     heading,
     intro_text,
