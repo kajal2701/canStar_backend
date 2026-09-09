@@ -34,6 +34,7 @@ import {
   set_payment_option,
   add_extra_work_process,
   send_final_quote,
+  resend_invoice,
   resend_quote,
   update_quote,
   payment_receive,
@@ -67,6 +68,7 @@ router.post("/delete_quote", delete_quote);
 router.post("/set_payment_option", set_payment_option);
 router.post("/add_extra_work_process", add_extra_work_process);
 router.post("/send_final_quote", send_final_quote);
+router.post("/resend_invoice", resend_invoice);
 router.post("/resend_quote", resend_quote);
 router.post("/update_quote", update_quote);
 router.post("/payment_receive", payment_receive);

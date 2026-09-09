@@ -60,6 +60,26 @@ function addDays(dateStr, days) {
   return d.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 }
 
+// Compute expiry date dynamically for updated quotes.
+// If the original expiry (created_at + days) has already passed,
+// reset the expiry to today + days. Otherwise keep the original.
+function computeExpiryDate(createdAt, days = 10) {
+  const created = new Date(createdAt);
+  const originalExpiry = new Date(created);
+  originalExpiry.setDate(originalExpiry.getDate() + days);
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  originalExpiry.setHours(0, 0, 0, 0);
+
+  if (today > originalExpiry) {
+    // Quote has expired — reset expiry from today
+    return addDays(new Date().toISOString(), days);
+  }
+  // Quote still valid — keep original expiry
+  return addDays(createdAt, days);
+}
+
 // ─── Customer email resolver ─────────────────────────────────────────────────
 
 /**
@@ -158,7 +178,7 @@ export async function sendCustomerQuoteEmail(quote_id, is_updated = false) {
     lname: quote.lname,
     quote_no: quote.quote_no,
     formattedDate: formatDate(quote.created_at),
-    expiryDate: addDays(quote.created_at, 10),
+    expiryDate: is_updated ? computeExpiryDate(quote.created_at, 10) : addDays(quote.created_at, 10),
     deposit_amount: quote.deposit_amount,
     main_total: quote.main_total,
     encryptedQuoteNo: encryptParam(quote.quote_no),

@@ -958,6 +958,18 @@ export const send_final_quote = async (req, res) => {
   }
 };
 
+// POST /quote/resend_invoice
+// Body: { quote_id, send_email }
+export const resend_invoice = async (req, res) => {
+  try {
+    const { quote_id, send_email } = req.body;
+    sendFinalQuoteNotification(quote_id, send_email !== false).catch(() => { });
+    return res.status(200).json({ success: true, status_code: 1, message: "Final Invoice resent successfully." });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 // POST /quote/resend_quote
 // Body: { quote_id }
 export const resend_quote = async (req, res) => {
