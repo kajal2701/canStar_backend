@@ -295,6 +295,7 @@ export const add_quote_process = async (req, res) => {
       status: 1,
       warranty_version: "new",
       created_at: now(),
+      discount_excludes_controller: 1,
     };
 
     const [result] = await pool.query("INSERT INTO quote_tbl SET ?", [data]);
@@ -415,7 +416,8 @@ export const view_quote = async (req, res) => {
     }
 
     const discount = quote.discount_percentage;
-    quote.discount_amount = (quote.total_controller_price + quote.total_feet_price) * discount / 100;
+    const discountBase = quote.discount_excludes_controller ? quote.total_feet_price : (quote.total_controller_price + quote.total_feet_price);
+    quote.discount_amount = discountBase * discount / 100;
 
     const [access_image] = await pool.query(
       "SELECT * FROM access_image_tbl WHERE quote_id = ?", [quote_id]
@@ -588,6 +590,7 @@ export const edit_quote_process = async (req, res) => {
       discount_percentage, gst_percentage, gst, main_total,
       notes, adminnotes, annotation_data,
       easy_plug_notes, controller_notes,
+      discount_excludes_controller,
     } = req.body;
 
     const parseField = (val) => {
@@ -617,6 +620,7 @@ export const edit_quote_process = async (req, res) => {
       notes: notes || "",
       adminnotes: adminnotes || "",
       customer_visible: "yes",
+      discount_excludes_controller: discount_excludes_controller === "1" ? 1 : 0,
     };
 
     const [result] = await pool.query(
