@@ -1138,6 +1138,31 @@ export const installs2 = async (req, res) => {
       quote.payment_details = payments;
     }
 
+    // In-progress installations (any active install process not completed)
+    const [in_progress] = await pool.query(`
+      SELECT quote_tbl.*,
+        CONCAT(user_tbl.fname,' ',user_tbl.lname) as salesman,
+        CONCAT(installer_tbl.fname,' ',installer_tbl.lname) as installer_name,
+        COALESCE(SUM(annotation_image_tbl.total_numerical_box), 0) as total_numerical_box,
+        MAX(annotation_image_tbl.color) as color,
+        install_process_tbl.status as install_status
+      FROM quote_tbl
+      JOIN user_tbl ON user_tbl.user_id = quote_tbl.user_id
+      LEFT JOIN user_tbl AS installer_tbl ON installer_tbl.user_id = quote_tbl.installer_id
+      LEFT JOIN annotation_image_tbl ON annotation_image_tbl.quote_id = quote_tbl.quote_id
+      LEFT JOIN install_process_tbl ON install_process_tbl.quote_id = quote_tbl.quote_id
+      WHERE quote_tbl.status = 3
+        AND install_process_tbl.status IS NOT NULL 
+        AND install_process_tbl.status != 'completed'
+      GROUP BY quote_tbl.quote_id
+      ORDER BY quote_tbl.installation_date ASC
+    `);
+
+    for (const quote of in_progress) {
+      const [payments] = await pool.query(paymentDetailsQuery, [quote.quote_id]);
+      quote.payment_details = payments;
+    }
+
     // Past installations where invoice NOT sent
     const [past_pending_invoice] = await pool.query(`
       SELECT quote_tbl.*,
@@ -1196,6 +1221,7 @@ export const installs2 = async (req, res) => {
         upcoming_installations: upcoming,
         past_installations_pending_invoice: past_pending_invoice,
         non_scheduled_jobs: non_scheduled,
+        in_progress_installations: in_progress,
       },
     });
   } catch (error) {
