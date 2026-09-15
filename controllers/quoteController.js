@@ -221,7 +221,7 @@ export const manage_quote_export = async (req, res) => {
 export const getProductdata = async (req, res) => {
   try {
     const [rows] = await pool.query(
-      "SELECT * FROM product_tbl WHERE type = 1 AND status = 1"
+      "SELECT * FROM product_tbl WHERE type = 1 AND status = 1 ORDER BY product_id DESC"
     );
     return res.status(200).json({ success: true, data: rows });
   } catch (error) {
@@ -523,6 +523,15 @@ export const edit_quote = async (req, res) => {
     );
     if (!quote) return res.status(404).json({ success: false, message: "Quote not found" });
 
+    if (quote.customer_id) {
+      const [[customer]] = await pool.query(
+        "SELECT email_json FROM customer_tbl WHERE cust_id = ?", [quote.customer_id]
+      );
+      if (customer && customer.email_json) {
+        quote.customer_email_json = customer.email_json;
+      }
+    }
+
     // Access images (plug and controller)
     const [[access_image_plug]] = await pool.query(
       "SELECT * FROM access_image_tbl WHERE quote_id = ? AND access_type = 'plug'", [quote_id]
@@ -566,7 +575,7 @@ export const edit_quote = async (req, res) => {
 
     quote.custom_product_data = JSON.parse(quote.custom_product_data || "[]");
 
-    const [products] = await pool.query("SELECT * FROM product_tbl WHERE type = 1 AND status = 1");
+    const [products] = await pool.query("SELECT * FROM product_tbl WHERE type = 1 AND status = 1 ORDER BY product_id DESC");
     const [colors] = await pool.query("SELECT * FROM color_tbl");
     const [provinces] = await pool.query("SELECT * FROM taxrates");
 
@@ -583,7 +592,7 @@ export const edit_quote = async (req, res) => {
 export const edit_quote_process = async (req, res) => {
   try {
     const {
-      quote_id, fname, lname, email, phone,
+      quote_id, fname, lname, email, email_json, phone,
       street, city, state, country, post_code,
       product_data, custom_product_data,
       total_controller_price, total_feet_price,
@@ -599,11 +608,19 @@ export const edit_quote_process = async (req, res) => {
       return val;
     };
 
-    // Capture old main_total before updating (for payment recalculation)
+    // Capture old main_total before updating (for payment recalculation) and customer_id
     const [[old_quote]] = await pool.query(
-      "SELECT main_total FROM quote_tbl WHERE quote_id = ?", [quote_id]
+      "SELECT main_total, customer_id FROM quote_tbl WHERE quote_id = ?", [quote_id]
     );
     const old_main_total = parseFloat(old_quote?.main_total || 0);
+
+    // Sync email and email_json to customer_tbl if customer_id exists
+    if (old_quote && old_quote.customer_id) {
+      await pool.query(
+        "UPDATE customer_tbl SET email = ?, email_json = ? WHERE cust_id = ?",
+        [email, email_json || null, old_quote.customer_id]
+      );
+    }
 
     const data = {
       fname, lname, email, phone,
@@ -1202,7 +1219,7 @@ export const calendar_installs = async (req, res) => {
     `;
 
     let filterQuery = "";
-    let queryParams = [today()];
+    let queryParams = ['2026-09-13'];
 
     // If not admin, filter by installer_id
     if (role && Number(role) !== 1 && user_id) {
@@ -1224,7 +1241,8 @@ export const calendar_installs = async (req, res) => {
       WHERE quote_tbl.status = 3
         AND quote_tbl.installation_date IS NOT NULL
         AND quote_tbl.installation_date != ''
-        AND quote_tbl.installation_date >= ?
+        AND quote_tbl.installation_date > ?
+        AND (install_process_tbl.status IS NULL OR install_process_tbl.status != 'completed')
         ${filterQuery}
       GROUP BY quote_tbl.quote_id
       ORDER BY quote_tbl.installation_date ASC
