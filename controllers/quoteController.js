@@ -12,6 +12,7 @@ import {
   sendFollowupScheduledEmail,
   sendReviewAndWarrantyEmail,
 } from "../utils/emailHelper.js";
+import { handleInventoryHoldsOnCompletion } from "../utils/helperFunctions.js";
 
 const now = () => new Date().toISOString().slice(0, 19).replace("T", " ");
 const today = () => new Date().toISOString().slice(0, 10);
@@ -75,7 +76,16 @@ const computeQuoteStatus = (row) => {
 
 // Internal function to get filtered list
 const getFilteredQuotesList = async (req) => {
-  const { user_id, role, search, salesman, date, installation_date } = req.query;
+  const { user_id, role, search, salesman, date, installation_date, sort_by, sort_order } = req.query;
+
+  // Whitelist of allowed sort columns to prevent SQL injection
+  const SORT_COLUMN_MAP = {
+    quote_id: "quote_tbl.quote_id",
+    installation_date: "quote_tbl.installation_date",
+    created_at: "quote_tbl.created_at",
+    customer_name: "quote_tbl.fname",
+    total: "quote_tbl.main_total",
+  };
 
   // Select only necessary slim columns (no heavy blobs)
   let query = `
@@ -86,12 +96,11 @@ const getFilteredQuotesList = async (req) => {
       quote_tbl.installation_date, quote_tbl.installer_id, quote_tbl.invoice_date,
       quote_tbl.sanction_reason, quote_tbl.sanction_notes, quote_tbl.followup_date,
       CONCAT(user_tbl.fname,' ',user_tbl.lname) as salesman,
-      CONCAT(installer_tbl.fname,' ',installer_tbl.lname) as installer_name,
+      (SELECT GROUP_CONCAT(CONCAT(fname, ' ', lname) SEPARATOR ', ') FROM user_tbl WHERE JSON_CONTAINS(quote_tbl.installer_id, JSON_QUOTE(CAST(user_tbl.user_id AS CHAR)))) as installer_name,
       COALESCE(SUM(annotation_image_tbl.total_numerical_box), 0) as total_numerical_box,
       GROUP_CONCAT(DISTINCT annotation_image_tbl.color ORDER BY annotation_image_tbl.color SEPARATOR ', ') as colors
     FROM quote_tbl
     JOIN user_tbl ON user_tbl.user_id = quote_tbl.user_id
-    LEFT JOIN user_tbl AS installer_tbl ON installer_tbl.user_id = quote_tbl.installer_id
     LEFT JOIN annotation_image_tbl ON annotation_image_tbl.quote_id = quote_tbl.quote_id
   `;
   const params = [];
@@ -136,7 +145,18 @@ const getFilteredQuotesList = async (req) => {
   }
 
   query += " WHERE " + conditions.join(" AND ");
-  query += " GROUP BY quote_tbl.quote_id ORDER BY quote_tbl.quote_id DESC";
+  query += " GROUP BY quote_tbl.quote_id";
+
+  // Build ORDER BY clause from whitelisted sort params
+  const resolvedCol = SORT_COLUMN_MAP[sort_by] || SORT_COLUMN_MAP.quote_id;
+  const resolvedDir = sort_order === "asc" ? "ASC" : "DESC";
+
+  if (sort_by === "installation_date") {
+    // Push NULLs (Not Scheduled) to the bottom regardless of sort direction
+    query += ` ORDER BY ${resolvedCol} IS NULL, ${resolvedCol} ${resolvedDir}`;
+  } else {
+    query += ` ORDER BY ${resolvedCol} ${resolvedDir}`;
+  }
 
   const [quotes] = await pool.query(query, params);
 
@@ -859,6 +879,7 @@ export const delete_quote = async (req, res) => {
       "UPDATE quote_tbl SET status = 5 WHERE quote_id = ?", [quote_id]
     );
     if (result.affectedRows > 0) {
+      handleInventoryHoldsOnCompletion(quote_id, 'RELEASE').catch(() => { });
       sendDeleteQuoteEmail(quote_id).catch(() => { });
       return res.status(200).json({ success: true, status_code: "1", message: "Quote deleted successfully." });
     } else {
@@ -1057,10 +1078,10 @@ export const payment_receive = async (req, res) => {
 };
 
 // POST /quote/schedule_installation
-// Body: { quote_id, installation_date, installer_id, customer_email, quote_no }
+// Body: { quote_id, installation_date, installer_ids, customer_email, quote_no }
 export const schedule_installation = async (req, res) => {
   try {
-    const { quote_id, installation_date, installer_id } = req.body;
+    const { quote_id, installation_date, installer_ids } = req.body;
 
     // ── Detect new schedule vs reschedule ────────────────────────────────────
     // Fetch the current installation_date BEFORE updating
@@ -1071,17 +1092,24 @@ export const schedule_installation = async (req, res) => {
     const isRescheduled = !!(existing?.installation_date);
     // ────────────────────────────────────────────────────────────────────────
 
+    let installerIdsJson = null;
+    if (Array.isArray(installer_ids) && installer_ids.length > 0) {
+      installerIdsJson = JSON.stringify(installer_ids);
+    }
+
     const [result] = await pool.query(
       "UPDATE quote_tbl SET installation_date = ?, installer_id = ? WHERE quote_id = ?",
-      [installation_date, installer_id || null, quote_id]
+      [installation_date, installerIdsJson, quote_id]
     );
 
     if (result.affectedRows > 0) {
       // Send appropriate email to customer based on new schedule or reschedule
       sendInstallationScheduled(quote_id, isRescheduled).catch(() => { });
-      if (installer_id) {
-        // Send appropriate email to installer based on new assignment or reassignment
-        sendInstallerAssignedEmail(quote_id, isRescheduled).catch(() => { });
+      if (Array.isArray(installer_ids) && installer_ids.length > 0) {
+        // Send appropriate email to installers based on new assignment or reassignment
+        installer_ids.forEach((id) => {
+          sendInstallerAssignedEmail(quote_id, isRescheduled, id).catch(() => { });
+        });
       }
       return res.status(200).json({
         success: true,
@@ -1116,13 +1144,12 @@ export const installs2 = async (req, res) => {
     const [upcoming] = await pool.query(`
       SELECT quote_tbl.*,
         CONCAT(user_tbl.fname,' ',user_tbl.lname) as salesman,
-        CONCAT(installer_tbl.fname,' ',installer_tbl.lname) as installer_name,
+        (SELECT GROUP_CONCAT(CONCAT(fname, ' ', lname) SEPARATOR ', ') FROM user_tbl WHERE JSON_CONTAINS(quote_tbl.installer_id, JSON_QUOTE(CAST(user_tbl.user_id AS CHAR)))) as installer_name,
         COALESCE(SUM(annotation_image_tbl.total_numerical_box), 0) as total_numerical_box,
         MAX(annotation_image_tbl.color) as color,
         install_process_tbl.status as install_status
       FROM quote_tbl
       JOIN user_tbl ON user_tbl.user_id = quote_tbl.user_id
-      LEFT JOIN user_tbl AS installer_tbl ON installer_tbl.user_id = quote_tbl.installer_id
       LEFT JOIN annotation_image_tbl ON annotation_image_tbl.quote_id = quote_tbl.quote_id
       LEFT JOIN install_process_tbl ON install_process_tbl.quote_id = quote_tbl.quote_id
       WHERE quote_tbl.status = 3
@@ -1167,13 +1194,12 @@ export const installs2 = async (req, res) => {
     const [past_pending_invoice] = await pool.query(`
       SELECT quote_tbl.*,
         CONCAT(user_tbl.fname,' ',user_tbl.lname) as salesman,
-        CONCAT(installer_tbl.fname,' ',installer_tbl.lname) as installer_name,
+        (SELECT GROUP_CONCAT(CONCAT(fname, ' ', lname) SEPARATOR ', ') FROM user_tbl WHERE JSON_CONTAINS(quote_tbl.installer_id, JSON_QUOTE(CAST(user_tbl.user_id AS CHAR)))) as installer_name,
         COALESCE(SUM(annotation_image_tbl.total_numerical_box), 0) as total_numerical_box,
         MAX(annotation_image_tbl.color) as color,
         install_process_tbl.status as install_status
       FROM quote_tbl
       JOIN user_tbl ON user_tbl.user_id = quote_tbl.user_id
-      LEFT JOIN user_tbl AS installer_tbl ON installer_tbl.user_id = quote_tbl.installer_id
       LEFT JOIN annotation_image_tbl ON annotation_image_tbl.quote_id = quote_tbl.quote_id
       LEFT JOIN install_process_tbl ON install_process_tbl.quote_id = quote_tbl.quote_id
       WHERE quote_tbl.status = 3
@@ -1249,19 +1275,18 @@ export const calendar_installs = async (req, res) => {
 
     // If not admin, filter by installer_id
     if (role && Number(role) !== 1 && user_id) {
-      filterQuery = " AND quote_tbl.installer_id = ? ";
+      filterQuery = " AND JSON_CONTAINS(quote_tbl.installer_id, JSON_QUOTE(CAST(? AS CHAR))) ";
       queryParams.push(user_id);
     }
 
     const [upcoming] = await pool.query(`
       SELECT quote_tbl.*,
         CONCAT(user_tbl.fname,' ',user_tbl.lname) as salesman,
-        CONCAT(installer_tbl.fname,' ',installer_tbl.lname) as installer_name,
+        (SELECT GROUP_CONCAT(CONCAT(fname, ' ', lname) SEPARATOR ', ') FROM user_tbl WHERE JSON_CONTAINS(quote_tbl.installer_id, JSON_QUOTE(CAST(user_tbl.user_id AS CHAR)))) as installer_name,
         COALESCE(SUM(annotation_image_tbl.total_numerical_box), 0) as total_numerical_box,
         install_process_tbl.status as install_status
       FROM quote_tbl
       JOIN user_tbl ON user_tbl.user_id = quote_tbl.user_id
-      LEFT JOIN user_tbl AS installer_tbl ON installer_tbl.user_id = quote_tbl.installer_id
       LEFT JOIN annotation_image_tbl ON annotation_image_tbl.quote_id = quote_tbl.quote_id
       LEFT JOIN install_process_tbl ON install_process_tbl.quote_id = quote_tbl.quote_id
       WHERE quote_tbl.status = 3
@@ -1369,11 +1394,10 @@ export const installs = async (req, res) => {
     const [upcoming] = await pool.query(`
       SELECT quote_tbl.*,
         CONCAT(user_tbl.fname,' ',user_tbl.lname) as salesman,
-        CONCAT(installer_tbl.fname,' ',installer_tbl.lname) as installer_name,
+        (SELECT GROUP_CONCAT(CONCAT(fname, ' ', lname) SEPARATOR ', ') FROM user_tbl WHERE JSON_CONTAINS(quote_tbl.installer_id, JSON_QUOTE(CAST(user_tbl.user_id AS CHAR)))) as installer_name,
         COALESCE(SUM(annotation_image_tbl.total_numerical_box), 0) as total_numerical_box
       FROM quote_tbl
       JOIN user_tbl ON user_tbl.user_id = quote_tbl.user_id
-      LEFT JOIN user_tbl AS installer_tbl ON installer_tbl.user_id = quote_tbl.installer_id
       LEFT JOIN annotation_image_tbl ON annotation_image_tbl.quote_id = quote_tbl.quote_id
       WHERE quote_tbl.status = 3
         AND quote_tbl.installation_date IS NOT NULL

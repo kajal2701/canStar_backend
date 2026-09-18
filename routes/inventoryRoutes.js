@@ -24,9 +24,16 @@ import {
   getAppcontrollers, addAppcontroller, editAppcontroller, deleteAppcontroller,
   // Power Supplies
   getPowersupplies, addPowersupply, editPowersupply, deletePowersupply,
+  // Inventory Holds
+  getHoldOptions, holdInventory, getHeldInventory
 } from "../controllers/inventoryController.js";
 
 const router = express.Router();
+
+// Holds
+router.get("/hold-options/:quoteId", getHoldOptions);
+router.post("/hold", holdInventory);
+router.get("/held/:quoteId", getHeldInventory);
 
 // Tracks
 router.get("/tracks", getTracks);

@@ -1,5 +1,6 @@
 import pool from "../db.js";
 import { sendOnTheWayEmail, sendControllerBoxConfirmation, sendPreAssessmentEmail, sendInstallationCompleteEmail } from "../utils/emailHelper.js";
+import { handleInventoryHoldsOnCompletion } from "../utils/helperFunctions.js";
 
 const now = () => new Date().toISOString().slice(0, 19).replace("T", " ");
 
@@ -86,19 +87,26 @@ export const saveInstallStep = async (req, res) => {
       [quote_id]
     );
 
+    let installerIdsJson = null;
+    if (Array.isArray(installer_id) && installer_id.length > 0) {
+      installerIdsJson = JSON.stringify(installer_id);
+    } else if (typeof installer_id === "string" && installer_id.startsWith("[")) {
+      installerIdsJson = installer_id;
+    }
+
     if (existing) {
       await pool.query(
         `UPDATE install_process_tbl 
          SET ${columnName} = ?, current_step = ?, installer_id = ?, updated_at = ?
          WHERE quote_id = ?`,
-        [stepDataJson, stepNum, installer_id || null, now(), quote_id]
+        [stepDataJson, stepNum, installerIdsJson || null, now(), quote_id]
       );
     } else {
       await pool.query(
         `INSERT INTO install_process_tbl 
          (quote_id, installer_id, current_step, ${columnName}, status, started_at, updated_at)
          VALUES (?, ?, ?, ?, 'in_progress', ?, ?)`,
-        [quote_id, installer_id || null, stepNum, stepDataJson, now(), now()]
+        [quote_id, installerIdsJson || null, stepNum, stepDataJson, now(), now()]
       );
     }
 
@@ -140,7 +148,7 @@ export const getInstallProcess = async (req, res) => {
     const data = {
       install_process_id: record.install_process_id,
       quote_id: record.quote_id,
-      installer_id: record.installer_id,
+      installer_id: parseJson(record.installer_id) || [],
       current_step: record.current_step,
       prep_data: parseJson(record.prep_data),
       on_the_way_data: parseJson(record.on_the_way_data),
@@ -191,6 +199,14 @@ export const completeInstallProcess = async (req, res) => {
        WHERE quote_id = ?`,
       [now(), now(), quote_id]
     );
+
+    // Deduct inventory that was held for this job
+    try {
+      await handleInventoryHoldsOnCompletion(quote_id, 'USE');
+    } catch (invErr) {
+      console.error("Failed to deduct inventory for quote:", quote_id, invErr);
+      // We don't block the installation completion if this fails, but it's logged.
+    }
 
     // Send completion email to admin + salesman
     try {

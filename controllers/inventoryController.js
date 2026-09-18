@@ -1067,3 +1067,115 @@ export const deletePowersupply = async (req, res) => {
     notFound(res);
   } catch (e) { err(res, e); }
 };
+
+// ════════════════════════════════════════════════════════════════════════════════
+// INVENTORY HOLDS
+// ════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * GET /inventory/hold-options/:quoteId
+ * Returns available tracks, lights, and controllers.
+ */
+export const getHoldOptions = async (req, res) => {
+  try {
+    const [tracks] = await pool.query("SELECT *, (totalFeet - held_quantity - used_quantity) AS available FROM inventory_tracks_tbl");
+    const [lights] = await pool.query("SELECT *, (quantity - held_quantity - used_quantity) AS available FROM inventory_lights_tbl");
+    const [controllers] = await pool.query("SELECT *, (quantity - held_quantity - used_quantity) AS available FROM inventory_controllers_tbl");
+
+    ok(res, { tracks, lights, controllers });
+  } catch (e) { err(res, e); }
+};
+
+/**
+ * POST /inventory/hold
+ * Holds inventory for a quote.
+ */
+export const holdInventory = async (req, res) => {
+  const connection = await pool.getConnection();
+  try {
+    const { quote_id, tracks, lights, controllers } = req.body;
+    
+    await connection.beginTransaction();
+
+    // Check existing hold
+    const [existing] = await connection.query("SELECT * FROM quote_inventory_holds WHERE quote_id = ? AND status = 'HELD'", [quote_id]);
+    if (existing.length > 0) {
+      await connection.rollback();
+      return res.status(400).json({ success: false, message: "Inventory is already held for this quote." });
+    }
+
+    const holdItems = [];
+    
+    // Tracks
+    for (const item of (tracks || [])) {
+      const [rows] = await connection.query("SELECT * FROM inventory_tracks_tbl WHERE track_id = ? FOR UPDATE", [item.inventory_id]);
+      if (!rows[0]) throw new Error("Track not found");
+      const available = parseFloat(rows[0].totalFeet) - parseFloat(rows[0].held_quantity) - parseFloat(rows[0].used_quantity);
+      if (available < parseFloat(item.hold_quantity)) throw new Error("Insufficient track inventory.");
+      
+      await connection.query("UPDATE inventory_tracks_tbl SET held_quantity = held_quantity + ? WHERE track_id = ?", [item.hold_quantity, item.inventory_id]);
+      holdItems.push([quote_id, 'TRACK', item.inventory_id, item.hold_quantity, 'HELD']);
+    }
+
+    // Lights
+    for (const item of (lights || [])) {
+      const [rows] = await connection.query("SELECT * FROM inventory_lights_tbl WHERE light_id = ? FOR UPDATE", [item.inventory_id]);
+      if (!rows[0]) throw new Error("Light not found");
+      const available = parseFloat(rows[0].quantity) - parseFloat(rows[0].held_quantity) - parseFloat(rows[0].used_quantity);
+      if (available < parseFloat(item.hold_quantity)) throw new Error("Insufficient light inventory.");
+      
+      await connection.query("UPDATE inventory_lights_tbl SET held_quantity = held_quantity + ? WHERE light_id = ?", [item.hold_quantity, item.inventory_id]);
+      holdItems.push([quote_id, 'LIGHT', item.inventory_id, item.hold_quantity, 'HELD']);
+    }
+
+    // Controllers
+    for (const item of (controllers || [])) {
+      const [rows] = await connection.query("SELECT * FROM inventory_controllers_tbl WHERE controller_id = ? FOR UPDATE", [item.inventory_id]);
+      if (!rows[0]) throw new Error("Controller not found");
+      const available = parseFloat(rows[0].quantity) - parseFloat(rows[0].held_quantity) - parseFloat(rows[0].used_quantity);
+      if (available < parseFloat(item.hold_quantity)) throw new Error("Insufficient controller inventory.");
+      
+      await connection.query("UPDATE inventory_controllers_tbl SET held_quantity = held_quantity + ? WHERE controller_id = ?", [item.hold_quantity, item.inventory_id]);
+      holdItems.push([quote_id, 'CONTROLLER', item.inventory_id, item.hold_quantity, 'HELD']);
+    }
+
+    if (holdItems.length > 0) {
+      await connection.query("INSERT INTO quote_inventory_holds (quote_id, inventory_category, inventory_id, held_quantity, status) VALUES ?", [holdItems]);
+    }
+
+    await connection.commit();
+    created(res, "Inventory held successfully.");
+  } catch (e) {
+    await connection.rollback();
+    err(res, e);
+  } finally {
+    connection.release();
+  }
+};
+
+/**
+ * GET /inventory/held/:quoteId
+ * Returns currently held inventory for a quote.
+ */
+export const getHeldInventory = async (req, res) => {
+  try {
+    const { quoteId } = req.params;
+    
+    const [holds] = await pool.query("SELECT * FROM quote_inventory_holds WHERE quote_id = ? AND status = 'HELD'", [quoteId]);
+    
+    for (let hold of holds) {
+      if (hold.inventory_category === 'TRACK') {
+        const [track] = await pool.query("SELECT color, size, pricePerUnit FROM inventory_tracks_tbl WHERE track_id = ?", [hold.inventory_id]);
+        hold.details = track[0] || {};
+      } else if (hold.inventory_category === 'LIGHT') {
+        const [light] = await pool.query("SELECT type, pricePerUnit FROM inventory_lights_tbl WHERE light_id = ?", [hold.inventory_id]);
+        hold.details = light[0] || {};
+      } else if (hold.inventory_category === 'CONTROLLER') {
+        const [controller] = await pool.query("SELECT type, pricePerUnit FROM inventory_controllers_tbl WHERE controller_id = ?", [hold.inventory_id]);
+        hold.details = controller[0] || {};
+      }
+    }
+    
+    ok(res, holds);
+  } catch (e) { err(res, e); }
+};
