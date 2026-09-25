@@ -47,7 +47,7 @@ function renderTemplate(templateName, vars) {
 }
 
 function formatDate(dateStr) {
-  return new Date(dateStr).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  return new Date(dateStr).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric", timeZone: "America/Edmonton" });
 }
 
 function formatDateUTC(dateStr) {
@@ -57,7 +57,7 @@ function formatDateUTC(dateStr) {
 function addDays(dateStr, days) {
   const d = new Date(dateStr);
   d.setDate(d.getDate() + days);
-  return d.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  return d.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric", timeZone: "America/Edmonton" });
 }
 
 // Compute expiry date dynamically for updated quotes.
@@ -218,7 +218,7 @@ export async function sendFinalQuoteNotification(quote_id, sendToCustomer = true
     fname: quote.fname,
     lname: quote.lname,
     payment_id: quote.payment_id ?? "",
-    formattedDate: new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }),
+    formattedDate: formatDate(new Date().toISOString()),
     balanceAmount: parseFloat(quote.pending_payment_amount ?? quote.main_total).toFixed(2),
     encryptedQuoteNo: encryptParam(quote.quote_no),
     quote_person: quote.quote_person || "Canstar Light",
