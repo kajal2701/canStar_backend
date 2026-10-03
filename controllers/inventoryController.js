@@ -1165,13 +1165,13 @@ export const getHeldInventory = async (req, res) => {
     
     for (let hold of holds) {
       if (hold.inventory_category === 'TRACK') {
-        const [track] = await pool.query("SELECT color, size, pricePerUnit FROM inventory_tracks_tbl WHERE track_id = ?", [hold.inventory_id]);
+        const [track] = await pool.query("SELECT color, size, supplier, pricePerUnit FROM inventory_tracks_tbl WHERE track_id = ?", [hold.inventory_id]);
         hold.details = track[0] || {};
       } else if (hold.inventory_category === 'LIGHT') {
-        const [light] = await pool.query("SELECT type, pricePerUnit FROM inventory_lights_tbl WHERE light_id = ?", [hold.inventory_id]);
+        const [light] = await pool.query("SELECT type, supplier, pricePerUnit FROM inventory_lights_tbl WHERE light_id = ?", [hold.inventory_id]);
         hold.details = light[0] || {};
       } else if (hold.inventory_category === 'CONTROLLER') {
-        const [controller] = await pool.query("SELECT type, pricePerUnit FROM inventory_controllers_tbl WHERE controller_id = ?", [hold.inventory_id]);
+        const [controller] = await pool.query("SELECT type, supplier, pricePerUnit FROM inventory_controllers_tbl WHERE controller_id = ?", [hold.inventory_id]);
         hold.details = controller[0] || {};
       }
     }

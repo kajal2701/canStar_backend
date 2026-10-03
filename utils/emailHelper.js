@@ -340,7 +340,7 @@ export async function sendInstallationScheduled(quote_id, isRescheduled = false)
 }
 
 // schedule_installation: installer assigned/reassigned notification → to installer
-export async function sendInstallerAssignedEmail(quote_id, isRescheduled = false) {
+export async function sendInstallerAssignedEmail(quote_id, isRescheduled = false, installerId = null) {
   const [[quote]] = await pool.query(
     `SELECT quote_tbl.*,
        CONCAT(installer.fname,' ',installer.lname) as installer_name,
@@ -350,12 +350,12 @@ export async function sendInstallerAssignedEmail(quote_id, isRescheduled = false
        COALESCE(SUM(ann.total_numerical_box), 0) as total_numerical_box,
        GROUP_CONCAT(DISTINCT ann.color ORDER BY ann.color SEPARATOR ', ') as colors
      FROM quote_tbl
-     LEFT JOIN user_tbl AS installer ON installer.user_id = quote_tbl.installer_id
+     LEFT JOIN user_tbl AS installer ON installer.user_id = ?
      LEFT JOIN user_tbl AS salesman ON salesman.user_id = quote_tbl.user_id
      LEFT JOIN annotation_image_tbl ann ON ann.quote_id = quote_tbl.quote_id
      WHERE quote_tbl.quote_id = ?
      GROUP BY quote_tbl.quote_id`,
-    [quote_id]
+    [installerId, quote_id]
   );
   if (!quote || !quote.installer_email) return;
 

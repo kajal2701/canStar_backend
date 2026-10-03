@@ -1179,11 +1179,13 @@ export const installs2 = async (req, res) => {
       LEFT JOIN annotation_image_tbl ON annotation_image_tbl.quote_id = quote_tbl.quote_id
       LEFT JOIN install_process_tbl ON install_process_tbl.quote_id = quote_tbl.quote_id
       WHERE quote_tbl.status = 3
-        AND install_process_tbl.status IS NOT NULL 
-        AND install_process_tbl.status != 'completed'
+        AND quote_tbl.installation_date IS NOT NULL
+        AND quote_tbl.installation_date != ''
+        AND quote_tbl.installation_date > ?
+        AND (install_process_tbl.status IS NULL OR install_process_tbl.status != 'completed')
       GROUP BY quote_tbl.quote_id
       ORDER BY quote_tbl.installation_date ASC
-    `);
+    `, ['2026-09-13']);
 
     for (const quote of in_progress) {
       const [payments] = await pool.query(paymentDetailsQuery, [quote.quote_id]);
