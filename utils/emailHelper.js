@@ -444,7 +444,7 @@ export async function sendPaymentReceiveAdmin(quote_id, is_final = false) {
        COALESCE(SUM(ann.total_numerical_box), 0) as total_numerical_box,
        GROUP_CONCAT(DISTINCT ann.color SEPARATOR ', ') as channel_color
      FROM quote_tbl
-     JOIN user_tbl ON user_tbl.user_id = quote_tbl.user_id
+     LEFT JOIN user_tbl ON user_tbl.user_id = quote_tbl.user_id
      LEFT JOIN annotation_image_tbl ann ON ann.quote_id = quote_tbl.quote_id
      WHERE quote_tbl.quote_id = ?
      GROUP BY quote_tbl.quote_id`,
@@ -471,7 +471,7 @@ export async function sendPaymentReceiveAdmin(quote_id, is_final = false) {
     lname: quote.lname,
     quote_no: quote.quote_no,
     quote_id: quote.quote_id,
-    salesman: quote.salesman,
+    salesman: quote.salesman || "N/A",
     main_total: quote.main_total,
     total_numerical_box: quote.total_numerical_box ?? "-",
     channel_color: quote.channel_color ?? "-",

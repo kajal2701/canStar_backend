@@ -628,9 +628,9 @@ export const edit_quote_process = async (req, res) => {
       return val;
     };
 
-    // Capture old main_total before updating (for payment recalculation) and customer_id
+    // Capture old main_total before updating (for payment recalculation), customer_id, and total_extra_work
     const [[old_quote]] = await pool.query(
-      "SELECT main_total, customer_id FROM quote_tbl WHERE quote_id = ?", [quote_id]
+      "SELECT main_total, customer_id, total_extra_work FROM quote_tbl WHERE quote_id = ?", [quote_id]
     );
     const old_main_total = parseFloat(old_quote?.main_total || 0);
 
@@ -660,13 +660,27 @@ export const edit_quote_process = async (req, res) => {
       discount_excludes_controller: discount_excludes_controller === "1" ? 1 : 0,
     };
 
+    // Recalculate gst and main_total to include existing extra work (edit form doesn't include it)
+    const existingExtraWork = parseFloat(old_quote?.total_extra_work || 0);
+    if (existingExtraWork > 0) {
+      const feetPrice = parseFloat(data.total_feet_price || 0);
+      const controllerPrice = parseFloat(data.total_controller_price || 0);
+      const discPct = parseFloat(data.discount_percentage || 0);
+      const discBase = data.discount_excludes_controller ? feetPrice : (controllerPrice + feetPrice);
+      const discountAmt = (discBase * discPct) / 100;
+      const taxableBase = controllerPrice + feetPrice - discountAmt + existingExtraWork;
+      const gstPct = parseFloat(data.gst_percentage || 0);
+      const recalcGst = (taxableBase * gstPct) / 100;
+      data.gst = parseFloat(recalcGst.toFixed(2));
+      data.main_total = parseFloat((taxableBase + recalcGst).toFixed(2));
+    }
     const [result] = await pool.query(
       "UPDATE quote_tbl SET ? WHERE quote_id = ?",
       [data, quote_id]
     );
 
     // Recalculate pending payment if main_total changed
-    const new_main_total = parseFloat(main_total || 0);
+    const new_main_total = parseFloat(data.main_total || 0);
     if (old_main_total !== new_main_total) {
       const [[payment_record]] = await pool.query(
         "SELECT * FROM quote_payment WHERE quote_id = ?", [quote_id]
