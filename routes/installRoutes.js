@@ -22,6 +22,7 @@ import {
   getInstallProcess,
   completeInstallProcess,
   sendOnTheWayNotification,
+  sendInstallerArrivalNotification,
   sendControllerBoxEmail,
   sendPreAssessment,
 } from "../controllers/installController.js";
@@ -40,6 +41,9 @@ router.post("/complete", completeInstallProcess);
 
 // POST /install/:quote_id/on-the-way — Send on-the-way email notification
 router.post("/:quote_id/on-the-way", sendOnTheWayNotification);
+
+// POST /install/:quote_id/installer-arrival — Send installer arrival date/time notification
+router.post("/:quote_id/installer-arrival", sendInstallerArrivalNotification);
 
 // POST /install/:quote_id/controller-box-email — Send controller box confirmation
 router.post("/:quote_id/controller-box-email", sendControllerBoxEmail);

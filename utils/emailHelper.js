@@ -581,6 +581,54 @@ export async function sendOnTheWayEmail(quote_id, etaMinutes) {
   });
 }
 
+// installer_arrival: scheduled arrival date/time notification → to customer + CC quote person
+// Same recipients as sendOnTheWayEmail
+export async function sendInstallerArrivalEmail(quote_id, arrivalDate, arrivalTime) {
+  const [[quote]] = await pool.query(
+    `SELECT quote_tbl.*,
+       CONCAT(salesman.fname,' ',salesman.lname) as salesman_name,
+       salesman.email as salesman_email,
+       CONCAT(installer_tbl.fname,' ',installer_tbl.lname) as installer_name
+     FROM quote_tbl
+     JOIN user_tbl AS salesman ON salesman.user_id = quote_tbl.user_id
+     LEFT JOIN user_tbl AS installer_tbl ON installer_tbl.user_id = quote_tbl.installer_id
+     WHERE quote_tbl.quote_id = ?`,
+    [quote_id]
+  );
+  if (!quote) return;
+
+  // Format the date string (YYYY-MM-DD) into a readable format using UTC to avoid timezone shift
+  const formattedDate = formatDateUTC(arrivalDate);
+
+  const html = renderTemplate("installer_arrival", {
+    fname: quote.fname,
+    lname: quote.lname,
+    installer_name: quote.installer_name || "Your Installer",
+    arrival_date: formattedDate,
+    arrival_time: arrivalTime,
+    quote_no: quote.quote_no,
+    address: quote.address ?? "",
+    city: quote.city ?? "",
+  });
+
+  // Build replyTo: quote person (salesman) + admin — same as on-the-way
+  const replyToAddresses = [
+    quote.salesman_email,
+    "canstarlightca@gmail.com",
+  ].filter(Boolean).join(", ");
+
+  // Send to customer, CC the quote person (salesman) — same as on-the-way
+  const emails = await getCustomerEmails(quote);
+  if (!emails.length) return;
+  await sendMail({
+    to: emails.join(", "),
+    cc: quote.salesman_email || "canstarlightca@gmail.com",
+    subject: `Installer Arrival Scheduled - Canstar Light`,
+    html,
+    replyTo: replyToAddresses,
+  });
+}
+
 // controller_box_confirmation: photo of proposed controller box location → customer
 export async function sendControllerBoxConfirmation(quote_id, photoUrl) {
   const [[quote]] = await pool.query(

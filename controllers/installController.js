@@ -1,5 +1,5 @@
 import pool from "../db.js";
-import { sendOnTheWayEmail, sendControllerBoxConfirmation, sendPreAssessmentEmail, sendInstallationCompleteEmail } from "../utils/emailHelper.js";
+import { sendOnTheWayEmail, sendInstallerArrivalEmail, sendControllerBoxConfirmation, sendPreAssessmentEmail, sendInstallationCompleteEmail } from "../utils/emailHelper.js";
 import { handleInventoryHoldsOnCompletion } from "../utils/helperFunctions.js";
 
 const now = () => new Date().toISOString().slice(0, 19).replace("T", " ");
@@ -245,6 +245,30 @@ export const sendOnTheWayNotification = async (req, res) => {
     });
   } catch (error) {
     console.error("sendOnTheWayNotification error:", error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// ─── POST /install/:quote_id/installer-arrival ───────────────────────────────
+// Sends an "Installer Arrival" email notification with scheduled date/time
+// Body: { arrivalDate, arrivalTime }
+export const sendInstallerArrivalNotification = async (req, res) => {
+  try {
+    const { quote_id } = req.params;
+    const { arrivalDate, arrivalTime } = req.body;
+
+    if (!quote_id || !arrivalDate || !arrivalTime) {
+      return res.status(400).json({ success: false, message: "quote_id, arrivalDate, and arrivalTime are required." });
+    }
+
+    await sendInstallerArrivalEmail(parseInt(quote_id), arrivalDate, arrivalTime);
+
+    return res.status(200).json({
+      success: true,
+      message: "Installer arrival notification sent successfully.",
+    });
+  } catch (error) {
+    console.error("sendInstallerArrivalNotification error:", error);
     return res.status(500).json({ success: false, message: error.message });
   }
 };

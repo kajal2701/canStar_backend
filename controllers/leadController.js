@@ -35,12 +35,12 @@ export const submitLead = async (req, res) => {
     if (result.affectedRows > 0) {
       return res.status(200).json({
         success: true,
-        message: "Your enquiry has been submitted successfully.",
+        message: "Your inquiry has been submitted successfully.",
       });
     } else {
       return res.status(500).json({
         success: false,
-        message: "Failed to submit enquiry. Please try again.",
+        message: "Failed to submit inquiry. Please try again.",
       });
     }
   } catch (error) {
