@@ -4,6 +4,7 @@ import {
   manageLeads,
   viewLead,
   updateLeadStatus,
+  updateLead,
   deleteLead,
 } from "../controllers/leadController.js";
 
@@ -13,6 +14,7 @@ router.post("/public/submit", submitLead);
 router.get("/manage", manageLeads);
 router.get("/view/:id", viewLead);
 router.post("/update_status", updateLeadStatus);
+router.post("/update", updateLead);
 router.post("/delete", deleteLead);
 
 export default router;

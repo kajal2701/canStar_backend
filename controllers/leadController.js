@@ -116,6 +116,52 @@ export const updateLeadStatus = async (req, res) => {
   }
 };
 
+// POST /lead/update
+// Body: { lead_id, name, phone, note, address }
+export const updateLead = async (req, res) => {
+  try {
+    let { lead_id, name, phone, note, address } = req.body;
+
+    if (!lead_id) {
+      return res.status(400).json({
+        success: false,
+        message: "Lead ID is required.",
+      });
+    }
+
+    name = (name || "").trim();
+    phone = (phone || "").trim();
+    note = (note || "").trim();
+    address = (address || "").trim();
+
+    if (name.length > 255) name = name.substring(0, 255);
+    if (phone.length > 50) phone = phone.substring(0, 50);
+    if (note.length > 2000) note = note.substring(0, 2000);
+    if (address.length > 2000) address = address.substring(0, 2000);
+
+    const [result] = await pool.query(
+      `UPDATE lead_tbl
+       SET name = ?, phone = ?, note = ?, address = ?, updated_at = ?
+       WHERE lead_id = ? AND active_state = 1`,
+      [name || null, phone || null, note || null, address || null, now(), lead_id]
+    );
+
+    if (result.affectedRows > 0) {
+      return res.status(200).json({
+        success: true,
+        message: "Lead updated successfully.",
+      });
+    } else {
+      return res.status(200).json({
+        success: false,
+        message: "Lead not found or no changes made.",
+      });
+    }
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 // POST /lead/delete
 // Body: { lead_id }
 export const deleteLead = async (req, res) => {
