@@ -662,7 +662,7 @@ export const edit_quote_process = async (req, res) => {
 
     // Recalculate gst and main_total to include existing extra work (edit form doesn't include it)
     const existingExtraWork = parseFloat(old_quote?.total_extra_work || 0);
-    if (existingExtraWork > 0) {
+    if (existingExtraWork !== 0) {
       const feetPrice = parseFloat(data.total_feet_price || 0);
       const controllerPrice = parseFloat(data.total_controller_price || 0);
       const discPct = parseFloat(data.discount_percentage || 0);
@@ -1289,8 +1289,8 @@ export const calendar_installs = async (req, res) => {
     let filterQuery = "";
     let queryParams = ['2026-09-13'];
 
-    // If not admin, filter by installer_id
-    if (role && Number(role) !== 1 && user_id) {
+    // Only filter by installer_id for Installer role (2). Admin (1) and Sales (4) see all installations
+    if (role && Number(role) === 2 && user_id) {
       filterQuery = " AND JSON_CONTAINS(quote_tbl.installer_id, JSON_QUOTE(CAST(? AS CHAR))) ";
       queryParams.push(user_id);
     }
@@ -1300,6 +1300,7 @@ export const calendar_installs = async (req, res) => {
         CONCAT(user_tbl.fname,' ',user_tbl.lname) as salesman,
         (SELECT GROUP_CONCAT(CONCAT(fname, ' ', lname) SEPARATOR ', ') FROM user_tbl WHERE JSON_CONTAINS(quote_tbl.installer_id, JSON_QUOTE(CAST(user_tbl.user_id AS CHAR)))) as installer_name,
         COALESCE(SUM(annotation_image_tbl.total_numerical_box), 0) as total_numerical_box,
+        GROUP_CONCAT(DISTINCT annotation_image_tbl.color ORDER BY annotation_image_tbl.color SEPARATOR ', ') as colors,
         install_process_tbl.status as install_status
       FROM quote_tbl
       JOIN user_tbl ON user_tbl.user_id = quote_tbl.user_id

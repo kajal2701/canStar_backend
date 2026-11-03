@@ -7,17 +7,22 @@ const now = () => new Date().toISOString().slice(0, 19).replace("T", " ");
 // POST /lead/public/submit
 export const submitLead = async (req, res) => {
   try {
-    let { name, phone, note, address } = req.body;
+    let { name, phone, note, address, preferred_contact_method, financing_option } = req.body;
 
     name = (name || "").trim();
     phone = (phone || "").trim();
     note = (note || "").trim();
     address = (address || "").trim();
+    preferred_contact_method = (preferred_contact_method || "").trim();
+
+    // Frontend passes boolean true/false or "Yes"/"No"
+    const financingVal = financing_option === true || financing_option === "Yes" ? "Yes" : "No";
 
     if (name.length > 255) name = name.substring(0, 255);
     if (phone.length > 50) phone = phone.substring(0, 50);
     if (note.length > 2000) note = note.substring(0, 2000);
     if (address.length > 2000) address = address.substring(0, 2000);
+    if (preferred_contact_method.length > 50) preferred_contact_method = preferred_contact_method.substring(0, 50);
 
     if (!name && !phone && !note && !address) {
       return res.status(400).json({
@@ -27,9 +32,17 @@ export const submitLead = async (req, res) => {
     }
 
     const [result] = await pool.query(
-      `INSERT INTO lead_tbl (name, phone, note, address, status, created_at)
-       VALUES (?, ?, ?, ?, 'New', ?)`,
-      [name || null, phone || null, note || null, address || null, now()]
+      `INSERT INTO lead_tbl (name, phone, note, address, preferred_contact_method, financing_option, status, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, 'New', ?)`,
+      [
+        name || null,
+        phone || null,
+        note || null,
+        address || null,
+        preferred_contact_method || null,
+        financingVal,
+        now(),
+      ]
     );
 
     if (result.affectedRows > 0) {
@@ -120,7 +133,7 @@ export const updateLeadStatus = async (req, res) => {
 // Body: { lead_id, name, phone, note, address }
 export const updateLead = async (req, res) => {
   try {
-    let { lead_id, name, phone, note, address } = req.body;
+    let { lead_id, name, phone, note, address, preferred_contact_method, financing_option } = req.body;
 
     if (!lead_id) {
       return res.status(400).json({
@@ -133,17 +146,31 @@ export const updateLead = async (req, res) => {
     phone = (phone || "").trim();
     note = (note || "").trim();
     address = (address || "").trim();
+    preferred_contact_method = (preferred_contact_method || "").trim();
+
+    // Frontend passes boolean true/false or "Yes"/"No"
+    const financingVal = financing_option === true || financing_option === "Yes" ? "Yes" : "No";
 
     if (name.length > 255) name = name.substring(0, 255);
     if (phone.length > 50) phone = phone.substring(0, 50);
     if (note.length > 2000) note = note.substring(0, 2000);
     if (address.length > 2000) address = address.substring(0, 2000);
+    if (preferred_contact_method.length > 50) preferred_contact_method = preferred_contact_method.substring(0, 50);
 
     const [result] = await pool.query(
       `UPDATE lead_tbl
-       SET name = ?, phone = ?, note = ?, address = ?, updated_at = ?
+       SET name = ?, phone = ?, note = ?, address = ?, preferred_contact_method = ?, financing_option = ?, updated_at = ?
        WHERE lead_id = ? AND active_state = 1`,
-      [name || null, phone || null, note || null, address || null, now(), lead_id]
+      [
+        name || null,
+        phone || null,
+        note || null,
+        address || null,
+        preferred_contact_method || null,
+        financingVal,
+        now(),
+        lead_id,
+      ]
     );
 
     if (result.affectedRows > 0) {
@@ -154,7 +181,7 @@ export const updateLead = async (req, res) => {
     } else {
       return res.status(200).json({
         success: false,
-        message: "Lead not found or no changes made.",
+        message: "Lead not found or no changes practical.",
       });
     }
   } catch (error) {
