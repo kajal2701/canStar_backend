@@ -160,6 +160,7 @@ import inventoryRoutes from "./routes/inventoryRoutes.js";
 import installRoutes from "./routes/installRoutes.js";
 import reportRoutes from "./routes/reportRoutes.js";
 import leadRoutes from "./routes/leadRoutes.js";
+import calendarRoutes from "./routes/calendarRoutes.js";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -197,6 +198,7 @@ app.use("/products", productsRoutes);
 app.use("/payment", paymentRoutes);
 app.use("/inventory", inventoryRoutes);
 app.use("/install", installRoutes);
+app.use("/calendar", calendarRoutes);
 app.use("/report", reportRoutes);
 app.use("/lead", leadRoutes);
 
