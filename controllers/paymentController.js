@@ -23,7 +23,7 @@ const chargeCard = async (data, amount) => {
   return result;
 };
 
-// Helper: update quote_tbl and delete removed annotation images
+// Helper: update quote_tbl and handle unchecked/removed items
 const quotedata_changes = async (data) => {
   await pool.query(
     `UPDATE quote_tbl SET
@@ -32,7 +32,8 @@ const quotedata_changes = async (data) => {
       total_controller_price = ?,
       total_feet_price = ?,
       gst = ?,
-      main_total = ?
+      main_total = ?,
+      unchecked_items_data = ?
     WHERE quote_id = ?`,
     [
       data.product_data_json,
@@ -41,6 +42,7 @@ const quotedata_changes = async (data) => {
       data["total-feet-input"],
       data["gst-input"],
       parseFloat(data["total-input"]).toFixed(2),
+      data.unchecked_items_json || null,
       data.quote_id,
     ]
   );

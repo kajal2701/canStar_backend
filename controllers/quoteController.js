@@ -486,6 +486,11 @@ export const view_quote = async (req, res) => {
       try { quote.warranty_data = JSON.parse(quote.warranty_data); } catch { quote.warranty_data = null; }
     }
 
+    // Parse unchecked_items_data JSON if present
+    if (quote.unchecked_items_data && typeof quote.unchecked_items_data === "string") {
+      try { quote.unchecked_items_data = JSON.parse(quote.unchecked_items_data); } catch { quote.unchecked_items_data = null; }
+    }
+
     return res.status(200).json({ success: true, data: quote });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
